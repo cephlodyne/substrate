@@ -79,7 +79,7 @@ GO_URL="https://go.dev/dl/${GO_FILE}"
 GO_SHA="b62ad2b6d7d2464f12a5bcad7ff47f19d08325773b5efd21610e445a05a9bf53"
 
 # Node.js
-NODE_VERSION="v26.1.0"
+NODE_VERSION="v24.17.0"
 NODE_FILE="node-${NODE_VERSION}-darwin-arm64.tar.xz"
 NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_FILE}"
 NODE_SHA_SOURCE="https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt"
@@ -109,10 +109,10 @@ FD_SHA="sha256:623dc0afc81b92e4d4606b380d7bc91916ba7b97814263e554d50923a39e480a"
 
 # Tree-sitter
 # sha: https://github.com/tree-sitter/tree-sitter/releases
-TS_VERSION="v0.26.8"
+TS_VERSION="v0.26.9"
 TS_FILE="tree-sitter-macos-arm64.gz"
 TS_URL="https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/${TS_FILE}"
-TS_SHA="sha256:024e2cee34723524d62d41bde4d2b4af23c8bbe0236e116c79c0b37d9575889e"
+TS_SHA="sha256:e46725b2417c085b0761948abc0cc240bff6a3ab5d2128e3ad0de467ded3388d"
 
 # TruffleHog
 # sha: https://github.com/trufflesecurity/trufflehog/releases
@@ -122,7 +122,7 @@ TRUFFLEHOG_URL="https://github.com/trufflesecurity/trufflehog/releases/download/
 TRUFFLEHOG_SHA="sha256:a31879b8fdf68e6f6b739bea1ae812660d43b11f4c980131ab6cb2b81aef3041"
 
 # --- Dynamically Verified Tools (No Manual SHA Needed) ---
-LAZYGIT_VERSION="v0.61.1"
+LAZYGIT_VERSION="v0.62.2"
 LAZYGIT_FILE="lazygit_${LAZYGIT_VERSION#v}_darwin_arm64.tar.gz"
 LAZYGIT_URL="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/${LAZYGIT_FILE}"
 LAZYGIT_SHA_SOURCE="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/checksums.txt"
@@ -138,10 +138,10 @@ TOFULS_URL="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERS
 TOFULS_SHA_SOURCE="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERSION}/tofu-ls_${TOFULS_VERSION}_checksums.txt"
 
 # --- Global Packages (Pinned for Zero-Trust Updates) ---
-GOPLS_VERSION="v0.21.1"
-GOIMPORTS_VERSION="v0.45.0"
-PNPM_VERSION="11.1.2"
-BIOME_VERSION="2.4.15"
+GOPLS_VERSION="v0.22.0"
+GOIMPORTS_VERSION="v0.46.0"
+PNPM_VERSION="11.8.0"
+BIOME_VERSION="2.5.0"
 
 # ==============================================================================
 # Paths & Ledger Setup

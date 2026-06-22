@@ -35,19 +35,29 @@ check_github() {
     return
   fi
 
-  # Fetch the latest release tag from GitHub API
+  # Fetch the latest release tag from GitHub API (Immune to minified JSON)
   local latest_version
   latest_version=$(curl --proto '=https' --tlsv1.2 -sSL "https://api.github.com/repos/$repo/releases/latest" |
-    grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed -E 's/"tag_name": *"([^"]+)"/\1/')
 
   if [ -z "$latest_version" ]; then
     echo "⚠️  $tool_name: Failed to fetch latest version from GitHub."
     return
   fi
 
+  # ✨ SMART ALIGNMENT: If local version lacks a 'v' but GitHub has one, strip the 'v' from GitHub's tag
+  if [[ ! "$current_version" == v* ]] && [[ "$latest_version" == v* ]]; then
+    latest_version="${latest_version#v}"
+  fi
+
   if [ "$current_version" != "$latest_version" ]; then
     echo "🚨 UPDATE AVAILABLE: $tool_name (Current: $current_version -> Latest: $latest_version)"
-    echo "   👉 https://github.com/$repo/releases/tag/$latest_version"
+    # Re-add 'v' for the URL if we stripped it, just so the hyperlink works
+    if [[ ! "$latest_version" == v* ]]; then
+      echo "   👉 https://github.com/$repo/releases/tag/v$latest_version"
+    else
+      echo "   👉 https://github.com/$repo/releases/tag/$latest_version"
+    fi
   else
     echo "✅ $tool_name is up-to-date ($current_version)"
   fi
@@ -87,14 +97,14 @@ check_npm_packages() {
   local current_pnpm="${receipt_val%_*}"
   local current_biome="${receipt_val#*_}"
 
-  # Fetch from NPM registry
+  # Fetch from NPM registry using the ultra-fast dist-tags endpoint
   local latest_pnpm
-  latest_pnpm=$(curl --proto '=https' --tlsv1.2 -sSL "https://registry.npmjs.org/pnpm/latest" |
-    grep -o '"version":"[^"]*"' | head -n 1 | sed -E 's/"version":"([^"]+)"/\1/')
+  latest_pnpm=$(curl --proto '=https' --tlsv1.2 -sSL "https://registry.npmjs.org/-/package/pnpm/dist-tags" |
+    grep -o '"latest":"[^"]*"' | head -n 1 | sed -E 's/"latest":"([^"]+)"/\1/')
 
   local latest_biome
-  latest_biome=$(curl --proto '=https' --tlsv1.2 -sSL "https://registry.npmjs.org/@biomejs/biome/latest" |
-    grep -o '"version":"[^"]*"' | head -n 1 | sed -E 's/"version":"([^"]+)"/\1/')
+  latest_biome=$(curl --proto '=https' --tlsv1.2 -sSL "https://registry.npmjs.org/-/package/@biomejs/biome/dist-tags" |
+    grep -o '"latest":"[^"]*"' | head -n 1 | sed -E 's/"latest":"([^"]+)"/\1/')
 
   if [ "$current_pnpm" != "$latest_pnpm" ]; then
     echo "🚨 UPDATE AVAILABLE: pnpm (Current: $current_pnpm -> Latest: $latest_pnpm)"
@@ -144,14 +154,14 @@ check_opentofu() {
   local current_tofu="${receipt_val%_*}"
   local current_tofuls="${receipt_val#*_}"
 
-  # Fetch from GitHub (stripping 'v' from the tag name because your variables omit it)
+  # Fetch from GitHub (Immune to minified JSON)
   local latest_tofu
   latest_tofu=$(curl --proto '=https' --tlsv1.2 -sSL "https://api.github.com/repos/opentofu/opentofu/releases/latest" |
-    grep '"tag_name":' | sed -E 's/.*"v?([^"]+)".*/\1/')
+    grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed -E 's/"tag_name": *"v?([^"]+)"/\1/')
 
   local latest_tofuls
   latest_tofuls=$(curl --proto '=https' --tlsv1.2 -sSL "https://api.github.com/repos/opentofu/tofu-ls/releases/latest" |
-    grep '"tag_name":' | sed -E 's/.*"v?([^"]+)".*/\1/')
+    grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed -E 's/"tag_name": *"v?([^"]+)"/\1/')
 
   if [ "$current_tofu" != "$latest_tofu" ]; then
     echo "🚨 UPDATE AVAILABLE: OpenTofu (Current: $current_tofu -> Latest: $latest_tofu)"
@@ -212,7 +222,8 @@ echo -e "\n--- Languages & Environments ---"
 LATEST_GO=$(curl --proto '=https' --tlsv1.2 -sSL "https://go.dev/dl/?mode=json" | grep -o '"version": "[^"]*"' | head -n 1 | sed -E 's/"version": "go([^"]+)"/\1/')
 check_custom_api "Go" "$LATEST_GO"
 
-LATEST_NODE=$(curl --proto '=https' --tlsv1.2 -sSL "https://nodejs.org/dist/index.json" | grep -o '"version":"[^"]*"' | head -n 1 | sed -E 's/"version":"([^"]+)"/\1/')
+# Parse the official index.tab without closing the pipe prematurely
+LATEST_NODE=$(curl --proto '=https' --tlsv1.2 -sSL "https://nodejs.org/dist/index.tab" | awk 'NR>1 && $10!="-" && !found {print $1; found=1}')
 check_custom_api "Node" "$LATEST_NODE"
 
 echo -e "\n--- CLI Utilities & Packages ---"
