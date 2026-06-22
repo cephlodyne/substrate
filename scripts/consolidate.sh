@@ -8,11 +8,10 @@ WEB_MODE=0
 TF_MODE=0
 PY_MODE=0
 TARGET_DIRS=()
-OUTPUT_FILE="files-consolidated.xml"
-SIZE_WARNING_THRESHOLD=500000 # 500KB (Roughly ~125k-150k LLM tokens)
+OUTPUT_FILE="files-consolidated.xml" # <- This is the variable that was missing/empty
+SIZE_WARNING_THRESHOLD=500000        # 500KB (Roughly ~125k-150k LLM tokens)
 
 # Base exclusions (always ignored to save LLM tokens)
-# Note: Hidden directories (.*) are now automatically ignored dynamically.
 EXCLUDE_DIRS=("node_modules" "dist" "build" "public" "vendor" "bin" "__pycache__")
 
 # Specific token-heavy files that offer no logic value to LLMs
@@ -55,6 +54,11 @@ while [[ "$#" -gt 0 ]]; do
     ;;
   esac
 done
+
+# Fallback in case OUTPUT_FILE is somehow still empty
+if [ -z "$OUTPUT_FILE" ]; then
+  OUTPUT_FILE="files-consolidated.xml"
+fi
 
 # --- Determine Search Base ---
 if [ ${#TARGET_DIRS[@]} -gt 0 ]; then
@@ -216,15 +220,15 @@ for file_path in "${FILES[@]}"; do
 
   echo -ne "\r⏳ Processing ($count/$FILE_COUNT): $display_path\033[K" >&2
 
-  echo "    <file path=\"$display_path\">"
-  echo '```'"$extension"
+  echo "    <file path=\"$display_path\">" >>"$OUTPUT_FILE"
+  echo '```'"$extension" >>"$OUTPUT_FILE"
 
-  cat "$file_path"
-  echo ""
+  cat "$file_path" >>"$OUTPUT_FILE"
+  echo "" >>"$OUTPUT_FILE"
 
-  echo '```'
-  echo "    </file>"
-done >>"$OUTPUT_FILE"
+  echo '```' >>"$OUTPUT_FILE"
+  echo "    </file>" >>"$OUTPUT_FILE"
+done
 
 echo -e "\n" >&2
 
@@ -241,4 +245,20 @@ echo "✅ Process complete. Results saved to: $OUTPUT_FILE ($FILE_SIZE_HUMAN)"
 if [ "$FILE_SIZE_BYTES" -gt "$SIZE_WARNING_THRESHOLD" ]; then
   echo "⚠️  WARNING: The generated file is quite large ($FILE_SIZE_HUMAN)."
   echo "    This is roughly ~$ESTIMATED_TOKENS tokens. Ensure your LLM has an adequate context window!"
+fi
+
+# --- Automated Secret Scanning ---
+echo "🔍 Scanning consolidated file for secrets..."
+if command -v trufflehog &>/dev/null; then
+  # We use the --fail flag so it exits with an error code if secrets are found
+  if trufflehog filesystem "$OUTPUT_FILE" --fail; then
+    echo "✅ Clean: No secrets detected in $OUTPUT_FILE."
+  else
+    echo "🚨 FATAL: TruffleHog found potential secrets in $OUTPUT_FILE!"
+    echo "   Do NOT share this file with an LLM until you scrub the secrets from the source files and re-run this script."
+    exit 1
+  fi
+else
+  echo "⚠️  WARNING: TruffleHog binary not found in PATH. Skipping automated secret scan."
+  echo "   Please manually verify $OUTPUT_FILE for API keys and credentials before sharing."
 fi
