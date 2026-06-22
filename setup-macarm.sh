@@ -28,25 +28,25 @@ fi
 
 # Colima
 # sha: https://github.com/abiosoft/colima/releases
-COLIMA_VERSION="v0.10.1"
+COLIMA_VERSION="v0.10.3"
 COLIMA_FILE="colima-Darwin-arm64"
 COLIMA_URL="https://github.com/abiosoft/colima/releases/download/${COLIMA_VERSION}/${COLIMA_FILE}"
-COLIMA_SHA="sha256:cff716570125444d9560e735d8a23ea50e9f70ca722bb9f44ab456c548425ea3"
+COLIMA_SHA="sha256:980ad8bf61a4ca370243f4cb41401a61276dcd2c2502bee7b9b86f9250169f34"
 
 # Lima
 # sha: https://github.com/lima-vm/lima/releases
-LIMA_VERSION="v2.1.1"
+LIMA_VERSION="v2.1.3"
 LIMA_FILE="lima-${LIMA_VERSION#v}-Darwin-arm64.tar.gz"
 LIMA_URL="https://github.com/lima-vm/lima/releases/download/${LIMA_VERSION}/${LIMA_FILE}"
-LIMA_SHA="sha256:b6b0e6701189cd8c4e549cc39e6d054dc681487798b9b774ad2cbd30c08b2bd8"
+LIMA_SHA="sha256:52bcf0780fcb28128ac9f6924d4410a6bc7c92fa80c9a858d89ae34ec3ce4f35"
 
 # Google Cloud SDK
 # look at the windows releases to see the version number
 # sha: https://cloud.google.com/sdk/docs/downloads-versioned-archives
-GCLOUD_VERSION="568.0.0"
+GCLOUD_VERSION="573.0.0"
 GCLOUD_FILE="google-cloud-cli-darwin-arm.tar.gz"
 GCLOUD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_FILE}"
-GCLOUD_SHA="866ef6399ef0c1f0bea777f6baf8006606eeeb92edcfd61bb7659127bbf712c9"
+GCLOUD_SHA="65582afb4c5f9f020831785978c8a0a158f627224bc3ac4573fae53c414abf00"
 
 # Alacritty
 # sha: https://github.com/alacritty/alacritty/releases
@@ -57,10 +57,10 @@ ALACRITTY_SHA="sha256:ad8d7de35fb38e43184776cac6dfee05ca325caa0b6639a06a55e54e4b
 
 # Ungoogled Chromium
 # sha: https://github.com/ungoogled-software/ungoogled-chromium-macos/releases
-CHROMIUM_VERSION="148.0.7778.167-1.1"
+CHROMIUM_VERSION="149.0.7827.155-1.1"
 CHROMIUM_FILE="ungoogled-chromium_${CHROMIUM_VERSION}_arm64-macos.dmg"
 CHROMIUM_URL="https://github.com/ungoogled-software/ungoogled-chromium-macos/releases/download/${CHROMIUM_VERSION}/${CHROMIUM_FILE}"
-CHROMIUM_SHA="sha256:a30ae0adab8156f4224c81c6968f4ccbec9c2196c0e5cc3afe56d3b081b1922f"
+CHROMIUM_SHA="sha256:779200bfc9dd8c113660ce147d59d817093949d33d6b95f123ffb4db6277c1bc"
 
 # JetBrains Mono Nerd Font
 # sha: https://github.com/ryanoasis/nerd-fonts/releases
@@ -86,10 +86,10 @@ NODE_SHA_SOURCE="https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt"
 
 # Neovim
 # sha: https://github.com/neovim/neovim/releases
-NVIM_VERSION="v0.12.2"
+NVIM_VERSION="v0.12.3"
 NVIM_FILE="nvim-macos-arm64.tar.gz"
 NVIM_URL="https://github.com/neovim/neovim/releases/download/$NVIM_VERSION/${NVIM_FILE}"
-NVIM_SHA="sha256:eeddee1009734f9071266e6b1b8a70308cb60cbcc45f5e1c1023adc471450fee"
+NVIM_SHA="sha256:532da1d00e465a660fa01c3d4991333d09c52107dce7df937368545daca0a14e"
 
 # --- CLI Utilities ---
 
@@ -127,12 +127,12 @@ LAZYGIT_FILE="lazygit_${LAZYGIT_VERSION#v}_darwin_arm64.tar.gz"
 LAZYGIT_URL="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/${LAZYGIT_FILE}"
 LAZYGIT_SHA_SOURCE="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/checksums.txt"
 
-TOFU_VERSION="1.12.0"
+TOFU_VERSION="1.12.3"
 TOFU_FILE="tofu_${TOFU_VERSION}_darwin_arm64.zip"
 TOFU_URL="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/${TOFU_FILE}"
 TOFU_SHA_SOURCE="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS"
 
-TOFULS_VERSION="0.4.2"
+TOFULS_VERSION="0.5.0"
 TOFULS_FILE="tofu-ls_Darwin_arm64.tar.gz"
 TOFULS_URL="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERSION}/${TOFULS_FILE}"
 TOFULS_SHA_SOURCE="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERSION}/tofu-ls_${TOFULS_VERSION}_checksums.txt"
