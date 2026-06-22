@@ -114,6 +114,13 @@ TS_FILE="tree-sitter-macos-arm64.gz"
 TS_URL="https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/${TS_FILE}"
 TS_SHA="sha256:024e2cee34723524d62d41bde4d2b4af23c8bbe0236e116c79c0b37d9575889e"
 
+# TruffleHog
+# sha: https://github.com/trufflesecurity/trufflehog/releases
+TRUFFLEHOG_VERSION="3.90.11"
+TRUFFLEHOG_FILE="trufflehog_${TRUFFLEHOG_VERSION}_darwin_arm64.tar.gz"
+TRUFFLEHOG_URL="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/${TRUFFLEHOG_FILE}"
+TRUFFLEHOG_SHA="sha256:"" # ⚠️ REPLACE ME
+
 # --- Dynamically Verified Tools (No Manual SHA Needed) ---
 LAZYGIT_VERSION="v0.61.1"
 LAZYGIT_FILE="lazygit_${LAZYGIT_VERSION#v}_darwin_arm64.tar.gz"
@@ -338,6 +345,14 @@ if needs_update "Treesitter" "$TS_VERSION"; then
   gzip -d -c "$CACHE_DIR/tree-sitter.gz" >"$BIN_DIR/tree-sitter" && chmod +x "$BIN_DIR/tree-sitter"
   xattr -r -d com.apple.quarantine "$BIN_DIR/tree-sitter" 2>/dev/null || true
   mark_updated "Treesitter" "$TS_VERSION"
+fi
+
+if needs_update "TruffleHog" "$TRUFFLEHOG_VERSION"; then
+  fetch_and_verify "TruffleHog" "$TRUFFLEHOG_URL" "$TRUFFLEHOG_FILE" "trufflehog.tar.gz" "$TRUFFLEHOG_SHA"
+  tar -xzf "$CACHE_DIR/trufflehog.tar.gz" -C "$CACHE_DIR"
+  mv "$CACHE_DIR/trufflehog" "$BIN_DIR/trufflehog"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/trufflehog" 2>/dev/null || true
+  mark_updated "TruffleHog" "$TRUFFLEHOG_VERSION"
 fi
 
 if needs_update "OpenTofu" "${TOFU_VERSION}_${TOFULS_VERSION}"; then

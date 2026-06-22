@@ -115,7 +115,7 @@ BINARIES_TO_REMOVE=(
   "colima" "lima" "limactl" "docker" "docker-compose" "gcloud"
   "go" "node" "npm" "npx" "pnpm" "pnpx" "nvim" "rg" "fd"
   "lazygit" "tree-sitter" "tofu" "tofu-ls" "terraform" "terraform-ls"
-  "gopls" "goimports" "consolidate"
+  "gopls" "goimports" "consolidate" "trufflehog"
 )
 
 # Dynamically find and remove any symlinks we created from the scripts directory
