@@ -73,10 +73,10 @@ JB_MONO_SHA="76f05ff3ace48a464a6ca57977998784ff7bdbb65a6d915d7e401cd3927c493c"
 
 # Go
 # sha: https://go.dev/dl/
-GO_VERSION="1.26.3"
+GO_VERSION="1.26.4"
 GO_FILE="go${GO_VERSION}.darwin-arm64.tar.gz"
 GO_URL="https://go.dev/dl/${GO_FILE}"
-GO_SHA="875cf54a15311eee2c99b9dd67c68c4a49351d489ab622bf2cfd28c8f2078d3c"
+GO_SHA="b62ad2b6d7d2464f12a5bcad7ff47f19d08325773b5efd21610e445a05a9bf53"
 
 # Node.js
 NODE_VERSION="v26.1.0"
@@ -119,7 +119,7 @@ TS_SHA="sha256:024e2cee34723524d62d41bde4d2b4af23c8bbe0236e116c79c0b37d9575889e"
 TRUFFLEHOG_VERSION="3.95.6"
 TRUFFLEHOG_FILE="trufflehog_${TRUFFLEHOG_VERSION}_darwin_arm64.tar.gz"
 TRUFFLEHOG_URL="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/${TRUFFLEHOG_FILE}"
-TRUFFLEHOG_SHA="sha256:sha256:a31879b8fdf68e6f6b739bea1ae812660d43b11f4c980131ab6cb2b81aef3041"
+TRUFFLEHOG_SHA="sha256:a31879b8fdf68e6f6b739bea1ae812660d43b11f4c980131ab6cb2b81aef3041"
 
 # --- Dynamically Verified Tools (No Manual SHA Needed) ---
 LAZYGIT_VERSION="v0.61.1"
@@ -626,7 +626,7 @@ echo "⚙️  Disabling smooth scrolling animations..."
 cat <<'EOF' >~/.config/nvim/lua/plugins/ui.lua
 return {
   -- Disable mini.animate (used in older LazyVim versions)
-  { "echasnovski/mini.animate", enabled = false },
+  { "nvim-mini/mini.animate", enabled = false },
   
   -- Disable Snacks smooth scroll (used in newer LazyVim versions)
   {
