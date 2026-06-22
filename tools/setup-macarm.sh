@@ -1,0 +1,585 @@
+#!/bin/bash
+set -euo pipefail
+# ==============================================================================
+# ZERO-TRUST IDE BOOTSTRAP SCRIPT (macOS / Apple Silicon ARM64)
+# SMART UPDATE MODE: Only installs/updates tools if version variables change.
+# CONFIGURATION MODE: Enforces script defaults on every run (Overwrites local tweaks)
+# ==============================================================================
+
+# 🔒 Enforce strict permissions
+umask 022
+
+echo "🛠️ Bootstrapping & Syncing macOS Zero-Trust Environment..."
+
+# 🔥 Ensure Xcode CLI Tools (which includes Python 3 for gcloud) are installed FIRST
+if ! xcode-select -p &>/dev/null; then
+  echo "❌ Xcode Command Line Tools missing. This provides Python for gcloud and Git!"
+  echo "👉 A popup should appear. Click 'Install', wait for it to finish, and run this script again."
+  xcode-select --install
+  exit 1
+fi
+
+# ==============================================================================
+# 1. TOOL VERSIONS, URLS & SHAS (macOS ARM64)
+# ==============================================================================
+# ⚠️ ACTION REQUIRED: Replace "000..." with actual SHA-256 checksums.
+
+# --- Infrastructure & Virtualization ---
+
+# Colima
+# sha: https://github.com/abiosoft/colima/releases
+COLIMA_VERSION="v0.10.1"
+COLIMA_FILE="colima-Darwin-arm64"
+COLIMA_URL="https://github.com/abiosoft/colima/releases/download/${COLIMA_VERSION}/${COLIMA_FILE}"
+COLIMA_SHA="sha256:cff716570125444d9560e735d8a23ea50e9f70ca722bb9f44ab456c548425ea3"
+
+# Lima
+# sha: https://github.com/lima-vm/lima/releases
+LIMA_VERSION="v2.1.1"
+LIMA_FILE="lima-${LIMA_VERSION#v}-Darwin-arm64.tar.gz"
+LIMA_URL="https://github.com/lima-vm/lima/releases/download/${LIMA_VERSION}/${LIMA_FILE}"
+LIMA_SHA="sha256:b6b0e6701189cd8c4e549cc39e6d054dc681487798b9b774ad2cbd30c08b2bd8"
+
+# Google Cloud SDK
+# look at the windows releases to see the version number
+# sha: https://cloud.google.com/sdk/docs/downloads-versioned-archives
+GCLOUD_VERSION="568.0.0"
+GCLOUD_FILE="google-cloud-cli-darwin-arm.tar.gz"
+GCLOUD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_FILE}"
+GCLOUD_SHA="866ef6399ef0c1f0bea777f6baf8006606eeeb92edcfd61bb7659127bbf712c9"
+
+# Alacritty
+# sha: https://github.com/alacritty/alacritty/releases
+ALACRITTY_VERSION="v0.17.0"
+ALACRITTY_FILE="Alacritty-${ALACRITTY_VERSION}.dmg"
+ALACRITTY_URL="https://github.com/alacritty/alacritty/releases/download/${ALACRITTY_VERSION}/${ALACRITTY_FILE}"
+ALACRITTY_SHA="sha256:ad8d7de35fb38e43184776cac6dfee05ca325caa0b6639a06a55e54e4b026620"
+
+# Ungoogled Chromium
+# sha: https://github.com/ungoogled-software/ungoogled-chromium-macos/releases
+CHROMIUM_VERSION="148.0.7778.167-1.1"
+CHROMIUM_FILE="ungoogled-chromium_${CHROMIUM_VERSION}_arm64-macos.dmg"
+CHROMIUM_URL="https://github.com/ungoogled-software/ungoogled-chromium-macos/releases/download/${CHROMIUM_VERSION}/${CHROMIUM_FILE}"
+CHROMIUM_SHA="sha256:a30ae0adab8156f4224c81c6968f4ccbec9c2196c0e5cc3afe56d3b081b1922f"
+
+# JetBrains Mono Nerd Font
+# sha: https://github.com/ryanoasis/nerd-fonts/releases
+JB_MONO_VERSION="v3.4.0"
+JB_MONO_FILE="JetBrainsMono.zip"
+JB_MONO_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${JB_MONO_VERSION}/${JB_MONO_FILE}"
+JB_MONO_SHA="76f05ff3ace48a464a6ca57977998784ff7bdbb65a6d915d7e401cd3927c493c"
+
+# --- Languages & Base Tools ---
+
+# Go
+# sha: https://go.dev/dl/
+GO_VERSION="1.26.3"
+GO_FILE="go${GO_VERSION}.darwin-arm64.tar.gz"
+GO_URL="https://go.dev/dl/${GO_FILE}"
+GO_SHA="875cf54a15311eee2c99b9dd67c68c4a49351d489ab622bf2cfd28c8f2078d3c"
+
+# Node.js
+NODE_VERSION="v26.1.0"
+NODE_FILE="node-${NODE_VERSION}-darwin-arm64.tar.xz"
+NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_FILE}"
+NODE_SHA_SOURCE="https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt"
+
+# Neovim
+# sha: https://github.com/neovim/neovim/releases
+NVIM_VERSION="v0.12.2"
+NVIM_FILE="nvim-macos-arm64.tar.gz"
+NVIM_URL="https://github.com/neovim/neovim/releases/download/$NVIM_VERSION/${NVIM_FILE}"
+NVIM_SHA="sha256:eeddee1009734f9071266e6b1b8a70308cb60cbcc45f5e1c1023adc471450fee"
+
+# --- CLI Utilities ---
+
+# Ripgrep
+# sha: https://github.com/BurntSushi/ripgrep/releases
+RG_VERSION="15.1.0"
+RG_FILE="ripgrep-$RG_VERSION-aarch64-apple-darwin.tar.gz"
+RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/$RG_VERSION/${RG_FILE}"
+RG_SHA="sha256:378e973289176ca0c6054054ee7f631a065874a352bf43f0fa60ef079b6ba715"
+
+# fd
+# sha: https://github.com/sharkdp/fd/releases
+FD_VERSION="v10.4.2"
+FD_FILE="fd-$FD_VERSION-aarch64-apple-darwin.tar.gz"
+FD_URL="https://github.com/sharkdp/fd/releases/download/$FD_VERSION/${FD_FILE}"
+FD_SHA="sha256:623dc0afc81b92e4d4606b380d7bc91916ba7b97814263e554d50923a39e480a"
+
+# Tree-sitter
+# sha: https://github.com/tree-sitter/tree-sitter/releases
+TS_VERSION="v0.26.8"
+TS_FILE="tree-sitter-macos-arm64.gz"
+TS_URL="https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/${TS_FILE}"
+TS_SHA="sha256:024e2cee34723524d62d41bde4d2b4af23c8bbe0236e116c79c0b37d9575889e"
+
+# --- Dynamically Verified Tools (No Manual SHA Needed) ---
+LAZYGIT_VERSION="v0.61.1"
+LAZYGIT_FILE="lazygit_${LAZYGIT_VERSION#v}_darwin_arm64.tar.gz"
+LAZYGIT_URL="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/${LAZYGIT_FILE}"
+LAZYGIT_SHA_SOURCE="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/checksums.txt"
+
+TOFU_VERSION="1.12.0"
+TOFU_FILE="tofu_${TOFU_VERSION}_darwin_arm64.zip"
+TOFU_URL="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/${TOFU_FILE}"
+TOFU_SHA_SOURCE="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS"
+
+TOFULS_VERSION="0.4.2"
+TOFULS_FILE="tofu-ls_Darwin_arm64.tar.gz"
+TOFULS_URL="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERSION}/${TOFULS_FILE}"
+TOFULS_SHA_SOURCE="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERSION}/tofu-ls_${TOFULS_VERSION}_checksums.txt"
+
+# --- Global Packages (Pinned for Zero-Trust Updates) ---
+GOPLS_VERSION="v0.21.1"
+GOIMPORTS_VERSION="v0.45.0"
+PNPM_VERSION="11.1.2"
+BIOME_VERSION="2.4.15"
+
+# ==============================================================================
+# Paths & Ledger Setup
+# ==============================================================================
+CACHE_DIR="$HOME/.cache/ide-bootstrap"
+LOCAL_DIR="$HOME/.local"
+BIN_DIR="$LOCAL_DIR/bin"
+NVIM_APP_DIR="$LOCAL_DIR/nvim-app"
+GCLOUD_DIR="$LOCAL_DIR/google-cloud-sdk"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RECEIPTS_FILE="$LOCAL_DIR/.ide_receipts"
+
+mkdir -p "$BIN_DIR" "$CACHE_DIR" "$NVIM_APP_DIR"
+touch "$RECEIPTS_FILE"
+export PATH="$BIN_DIR:$LOCAL_DIR/node/bin:$PATH"
+
+# ------------------------------------------------------------------------------
+# 2. STATE TRACKING & VERIFICATION LOGIC
+# ------------------------------------------------------------------------------
+needs_update() {
+  local tool="$1"
+  local target_version="$2"
+  local current_version=""
+
+  if grep -q "^${tool}=" "$RECEIPTS_FILE" 2>/dev/null; then
+    current_version=$(grep "^${tool}=" "$RECEIPTS_FILE" | cut -d'=' -f2)
+  fi
+
+  if [ "$current_version" == "$target_version" ]; then
+    echo "✅ $tool is up-to-date ($target_version). Skipping."
+    return 1 # False: Does not need update
+  else
+    echo "🔄 Updating $tool to $target_version..."
+    return 0 # True: Needs update
+  fi
+}
+
+mark_updated() {
+  local tool="$1"
+  local version="$2"
+  grep -v "^${tool}=" "$RECEIPTS_FILE" >"${RECEIPTS_FILE}.tmp" 2>/dev/null || true
+  echo "${tool}=${version}" >>"${RECEIPTS_FILE}.tmp"
+  mv "${RECEIPTS_FILE}.tmp" "$RECEIPTS_FILE"
+}
+
+fetch_and_verify() {
+  local name=$1 bin_url=$2 orig_file=$3 local_file=$4 source=$5
+  local expected_sha=""
+  cd "$CACHE_DIR" || exit
+
+  if [[ "$source" == http* ]]; then
+    local temp_sum="${local_file}.sum"
+    # 🔒 Enforce HTTPS and TLS 1.2+
+    curl --proto '=https' --tlsv1.2 -fsSL -o "$temp_sum" "$source"
+    if grep -q "$orig_file" "$temp_sum" 2>/dev/null; then
+      expected_sha=$(grep "$orig_file" "$temp_sum" | awk '{print $1}' | head -n 1)
+    else
+      echo "❌ FATAL: The filename '$orig_file' was NOT found in the checksums file."
+      exit 1
+    fi
+  else
+    expected_sha="$source"
+  fi
+
+  # 🧹 Sanitize the expected SHA
+  expected_sha="${expected_sha#sha256:}"
+  expected_sha="${expected_sha#sha256-}"
+
+  echo "⬇️  Downloading $name..."
+  curl --proto '=https' --tlsv1.2 -fsSL -o "$local_file" "$bin_url"
+
+  echo "🔐 Verifying $name..."
+  if ! echo "$expected_sha  $local_file" | shasum -a 256 -c; then
+    echo "❌ FATAL: Checksum validation failed for $name!"
+    exit 1
+  fi
+}
+
+# ------------------------------------------------------------------------------
+# 3. SMART INSTALL / UPDATE BLOCKS
+# ------------------------------------------------------------------------------
+
+if needs_update "Colima" "$COLIMA_VERSION"; then
+  fetch_and_verify "Colima" "$COLIMA_URL" "$COLIMA_FILE" "colima" "$COLIMA_SHA"
+  cp "$CACHE_DIR/colima" "$BIN_DIR/colima" && chmod +x "$BIN_DIR/colima"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/colima" 2>/dev/null || true
+  mark_updated "Colima" "$COLIMA_VERSION"
+fi
+
+if needs_update "Lima" "$LIMA_VERSION"; then
+  fetch_and_verify "Lima" "$LIMA_URL" "$LIMA_FILE" "lima.tar.gz" "$LIMA_SHA"
+  tar -xzf "$CACHE_DIR/lima.tar.gz" -C "$LOCAL_DIR" bin/lima bin/limactl share/lima
+  xattr -r -d com.apple.quarantine "$BIN_DIR/lima" "$BIN_DIR/limactl" 2>/dev/null || true
+  mark_updated "Lima" "$LIMA_VERSION"
+fi
+
+if needs_update "Gcloud" "$GCLOUD_VERSION"; then
+  fetch_and_verify "Google Cloud SDK" "$GCLOUD_URL" "$GCLOUD_FILE" "gcloud.tar.gz" "$GCLOUD_SHA"
+  rm -rf "$GCLOUD_DIR" && tar -xzf "$CACHE_DIR/gcloud.tar.gz" -C "$LOCAL_DIR"
+  ln -sf "$GCLOUD_DIR/bin/gcloud" "$BIN_DIR/gcloud"
+  xattr -r -d com.apple.quarantine "$GCLOUD_DIR" 2>/dev/null || true
+
+  echo "🔒 Disabling gcloud internal updaters to prevent version drift..."
+  "$BIN_DIR/gcloud" config set component_manager/disable_update_check true --quiet || true
+  "$BIN_DIR/gcloud" config set core/disable_usage_reporting true --quiet || true
+
+  mark_updated "Gcloud" "$GCLOUD_VERSION"
+fi
+
+if needs_update "Alacritty" "$ALACRITTY_VERSION"; then
+  fetch_and_verify "Alacritty" "$ALACRITTY_URL" "$ALACRITTY_FILE" "alacritty.dmg" "$ALACRITTY_SHA"
+  hdiutil attach "$CACHE_DIR/alacritty.dmg" -mountpoint /Volumes/Alacritty -nobrowse -quiet
+  rm -rf /Applications/Alacritty.app 2>/dev/null || sudo rm -rf /Applications/Alacritty.app
+  cp -R /Volumes/Alacritty/Alacritty.app /Applications/
+  hdiutil detach /Volumes/Alacritty -quiet
+  xattr -r -d com.apple.quarantine /Applications/Alacritty.app 2>/dev/null || true
+  mark_updated "Alacritty" "$ALACRITTY_VERSION"
+fi
+
+if needs_update "Chromium" "$CHROMIUM_VERSION"; then
+  fetch_and_verify "Ungoogled Chromium" "$CHROMIUM_URL" "$CHROMIUM_FILE" "chromium.dmg" "$CHROMIUM_SHA"
+  hdiutil attach "$CACHE_DIR/chromium.dmg" -mountpoint /Volumes/Chromium -nobrowse -quiet
+  mkdir -p "$HOME/Applications"
+  rm -rf "$HOME/Applications/Chromium.app" 2>/dev/null || true
+  cp -R /Volumes/Chromium/Chromium.app "$HOME/Applications/"
+  hdiutil detach /Volumes/Chromium -quiet
+  xattr -r -d com.apple.quarantine "$HOME/Applications/Chromium.app" 2>/dev/null || true
+  mark_updated "Chromium" "$CHROMIUM_VERSION"
+fi
+
+if needs_update "JetBrainsMono" "$JB_MONO_VERSION"; then
+  fetch_and_verify "JetBrains Mono Nerd Font" "$JB_MONO_URL" "$JB_MONO_FILE" "JetBrainsMono.zip" "$JB_MONO_SHA"
+  mkdir -p "$CACHE_DIR/jb-mono"
+  unzip -q -o "$CACHE_DIR/JetBrainsMono.zip" -d "$CACHE_DIR/jb-mono"
+  cp "$CACHE_DIR/jb-mono/"*.ttf "$HOME/Library/Fonts/"
+  mark_updated "JetBrainsMono" "$JB_MONO_VERSION"
+fi
+
+if needs_update "Go" "$GO_VERSION"; then
+  fetch_and_verify "Go" "$GO_URL" "$GO_FILE" "go.tar.gz" "$GO_SHA"
+  rm -rf "$LOCAL_DIR/go" && tar -xzf "$CACHE_DIR/go.tar.gz" -C "$LOCAL_DIR"
+  ln -sf "$LOCAL_DIR/go/bin/go" "$BIN_DIR/go"
+  xattr -r -d com.apple.quarantine "$LOCAL_DIR/go" 2>/dev/null || true
+  mark_updated "Go" "$GO_VERSION"
+fi
+
+if needs_update "Node" "$NODE_VERSION"; then
+  fetch_and_verify "Node.js" "$NODE_URL" "$NODE_FILE" "node.tar.xz" "$NODE_SHA_SOURCE"
+  rm -rf "$LOCAL_DIR/node" && mkdir -p "$LOCAL_DIR/node"
+  tar -xf "$CACHE_DIR/node.tar.xz" -C "$LOCAL_DIR/node" --strip-components=1
+  ln -sf "$LOCAL_DIR/node/bin/node" "$BIN_DIR/node"
+  ln -sf "$LOCAL_DIR/node/bin/npm" "$BIN_DIR/npm"
+  ln -sf "$LOCAL_DIR/node/bin/npx" "$BIN_DIR/npx"
+  xattr -r -d com.apple.quarantine "$LOCAL_DIR/node" 2>/dev/null || true
+  mark_updated "Node" "$NODE_VERSION"
+fi
+
+if needs_update "NPM_Packages" "${PNPM_VERSION}_${BIOME_VERSION}"; then
+  echo "📦 Installing Biome and pnpm securely via verified NPM binary..."
+  "$BIN_DIR/npm" install -g "pnpm@${PNPM_VERSION}" "@biomejs/biome@${BIOME_VERSION}"
+  ln -sf "$LOCAL_DIR/node/bin/pnpm" "$BIN_DIR/pnpm"
+  ln -sf "$LOCAL_DIR/node/bin/pnpx" "$BIN_DIR/pnpx"
+  mark_updated "NPM_Packages" "${PNPM_VERSION}_${BIOME_VERSION}"
+fi
+
+if needs_update "Neovim" "$NVIM_VERSION"; then
+  fetch_and_verify "Neovim" "$NVIM_URL" "$NVIM_FILE" "nvim.tar.gz" "$NVIM_SHA"
+  rm -rf "$NVIM_APP_DIR" && mkdir -p "$NVIM_APP_DIR"
+  tar -xzf "$CACHE_DIR/nvim.tar.gz" -C "$NVIM_APP_DIR" --strip-components=1
+  ln -sf "$NVIM_APP_DIR/bin/nvim" "$BIN_DIR/nvim"
+  xattr -r -d com.apple.quarantine "$NVIM_APP_DIR" 2>/dev/null || true
+  mark_updated "Neovim" "$NVIM_VERSION"
+fi
+
+if needs_update "Ripgrep" "$RG_VERSION"; then
+  fetch_and_verify "Ripgrep" "$RG_URL" "$RG_FILE" "rg.tar.gz" "$RG_SHA"
+  tar -xzf "$CACHE_DIR/rg.tar.gz" -C "$CACHE_DIR"
+  mv "$CACHE_DIR/ripgrep-$RG_VERSION-aarch64-apple-darwin/rg" "$BIN_DIR/rg"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/rg" 2>/dev/null || true
+  mark_updated "Ripgrep" "$RG_VERSION"
+fi
+
+if needs_update "fd" "$FD_VERSION"; then
+  fetch_and_verify "fd" "$FD_URL" "$FD_FILE" "fd.tar.gz" "$FD_SHA"
+  tar -xzf "$CACHE_DIR/fd.tar.gz" -C "$CACHE_DIR"
+  mv "$CACHE_DIR/fd-$FD_VERSION-aarch64-apple-darwin/fd" "$BIN_DIR/fd"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/fd" 2>/dev/null || true
+  mark_updated "fd" "$FD_VERSION"
+fi
+
+if needs_update "Lazygit" "$LAZYGIT_VERSION"; then
+  fetch_and_verify "Lazygit" "$LAZYGIT_URL" "$LAZYGIT_FILE" "lazygit.tar.gz" "$LAZYGIT_SHA_SOURCE"
+  tar -xzf "$CACHE_DIR/lazygit.tar.gz" -C "$CACHE_DIR"
+  mv "$CACHE_DIR/lazygit" "$BIN_DIR/lazygit"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/lazygit" 2>/dev/null || true
+  mark_updated "Lazygit" "$LAZYGIT_VERSION"
+fi
+
+if needs_update "Treesitter" "$TS_VERSION"; then
+  fetch_and_verify "Tree-sitter" "$TS_URL" "$TS_FILE" "tree-sitter.gz" "$TS_SHA"
+  gzip -d -c "$CACHE_DIR/tree-sitter.gz" >"$BIN_DIR/tree-sitter" && chmod +x "$BIN_DIR/tree-sitter"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/tree-sitter" 2>/dev/null || true
+  mark_updated "Treesitter" "$TS_VERSION"
+fi
+
+if needs_update "OpenTofu" "${TOFU_VERSION}_${TOFULS_VERSION}"; then
+  fetch_and_verify "OpenTofu" "$TOFU_URL" "$TOFU_FILE" "tofu.zip" "$TOFU_SHA_SOURCE"
+  fetch_and_verify "OpenTofu LS" "$TOFULS_URL" "$TOFULS_FILE" "tofu-ls.tar.gz" "$TOFULS_SHA_SOURCE"
+  unzip -q -o "$CACHE_DIR/tofu.zip" -d "$BIN_DIR"
+  tar -xzf "$CACHE_DIR/tofu-ls.tar.gz" -C "$BIN_DIR"
+  ln -sf "$BIN_DIR/tofu" "$BIN_DIR/terraform"
+  ln -sf "$BIN_DIR/tofu-ls" "$BIN_DIR/terraform-ls"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/tofu" "$BIN_DIR/tofu-ls" 2>/dev/null || true
+  mark_updated "OpenTofu" "${TOFU_VERSION}_${TOFULS_VERSION}"
+fi
+
+if needs_update "Gopls" "$GOPLS_VERSION"; then
+  echo "📦 Compiling gopls securely (CGO disabled, strictly proxied)..."
+  env CGO_ENABLED=0 GOBIN="$BIN_DIR" GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org "$LOCAL_DIR/go/bin/go" install "golang.org/x/tools/gopls@${GOPLS_VERSION}"
+  mark_updated "Gopls" "$GOPLS_VERSION"
+fi
+
+if needs_update "Goimports" "$GOIMPORTS_VERSION"; then
+  echo "📦 Compiling goimports securely (CGO disabled, strictly proxied)..."
+  env CGO_ENABLED=0 GOBIN="$BIN_DIR" GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org "$LOCAL_DIR/go/bin/go" install "golang.org/x/tools/cmd/goimports@${GOIMPORTS_VERSION}"
+  mark_updated "Goimports" "$GOIMPORTS_VERSION"
+fi
+
+echo "🧹 Cleaning up raw downloaded archives..."
+rm -rf "$CACHE_DIR"/*
+
+# ------------------------------------------------------------------------------
+# 4. UTILITY SCRIPTS & GIT HOOKS
+# ------------------------------------------------------------------------------
+
+echo "📜 Linking custom utility scripts to local bin..."
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [ -d "$ROOT_DIR/scripts" ]; then
+  for script in "$ROOT_DIR/scripts"/*.sh; do
+    if [ -f "$script" ]; then
+      script_name=$(basename "$script" .sh)
+      chmod +x "$script"
+      ln -sf "$script" "$BIN_DIR/$script_name"
+      echo "   ✅ Linked: $script_name"
+    fi
+  done
+fi
+
+echo "🛡️  Configuring TruffleHog global Git hooks..."
+if [ -f "$SCRIPT_DIR/hog-setup.sh" ]; then
+  bash "$SCRIPT_DIR/hog-setup.sh"
+fi
+
+# ------------------------------------------------------------------------------
+# 5. CONFIGURATIONS & ZSH INJECTIONS
+# ------------------------------------------------------------------------------
+
+echo "🐳 Generating Smart Zero-Download Docker Wrappers..."
+
+# Create a bridge for 'docker' that isolates VM context
+cat <<'EOF' >"$BIN_DIR/docker"
+#!/bin/bash
+printf -v ESCAPED_ARGS "%q " "$@"
+exec colima ssh -- bash -c "export DOCKER_CONTEXT=default DOCKER_HOST=unix:///var/run/docker.sock; docker $ESCAPED_ARGS"
+EOF
+chmod +x "$BIN_DIR/docker"
+
+# Create a bridge for 'docker-compose'
+cat <<'EOF' >"$BIN_DIR/docker-compose"
+#!/bin/bash
+printf -v ESCAPED_ARGS "%q " "$@"
+exec colima ssh -- bash -c "export DOCKER_CONTEXT=default DOCKER_HOST=unix:///var/run/docker.sock; docker compose $ESCAPED_ARGS"
+EOF
+chmod +x "$BIN_DIR/docker-compose"
+
+echo "⚠️  NOTE: Docker is running entirely inside a VM via SSH wrappers."
+echo "   - Volume mounts (-v) will only work for paths within /Users."
+echo "   - To mount paths outside /Users, run: colima start --edit"
+
+echo "🔗 Checking shell PATH configuration..."
+ZSHRC="$HOME/.zshrc"
+touch "$ZSHRC"
+grep -q ".local/bin" "$ZSHRC" || echo 'export PATH="$HOME/.local/bin:$PATH"' >>"$ZSHRC"
+grep -q ".local/node/bin" "$ZSHRC" || echo 'export PATH="$HOME/.local/node/bin:$PATH"' >>"$ZSHRC"
+grep -q "go/bin" "$ZSHRC" || echo 'export PATH="$PATH:$HOME/go/bin"' >>"$ZSHRC"
+
+# prevent go from automatically installing new versions
+echo 'export GOTOOLCHAIN=local' >>~/.zshrc
+
+# Clone the LazyVim base repo ONLY if it doesn't exist
+if [ ! -d "$HOME/.config/nvim" ]; then
+  if ! xcode-select -p &>/dev/null; then
+    echo "❌ Xcode Command Line Tools missing. Run 'xcode-select --install' and try again."
+    exit 1
+  fi
+
+  echo "✨ Bootstrapping LazyVim base repo..."
+  git clone https://github.com/LazyVim/starter ~/.config/nvim
+  rm -rf ~/.config/nvim/.git
+
+  # Inject lazy-lock.json if it exists alongside the script
+  if [ -f "$SCRIPT_DIR/lazy-lock.json" ]; then
+    cp "$SCRIPT_DIR/lazy-lock.json" ~/.config/nvim/lazy-lock.json
+  fi
+fi
+
+# ==============================================================================
+# ENFORCED DEFAULTS: The following files are overwritten on EVERY run.
+# ==============================================================================
+echo "⚙️  Enforcing Alacritty & Neovim configuration defaults..."
+
+mkdir -p ~/.config/alacritty
+cat <<EOF >~/.config/alacritty/alacritty.toml
+[window]
+padding = { x = 12, y = 12 }
+opacity = 0.95
+option_as_alt = "Both"
+dynamic_title = true
+[font]
+normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
+bold = { family = "JetBrainsMono Nerd Font", style = "Bold" }
+italic = { family = "JetBrainsMono Nerd Font", style = "Italic" }
+size = 18.0
+[keyboard]
+bindings = [{ key = "N", mods = "Command", action = "CreateNewWindow" }]
+[colors.primary]
+background = "#1a1b26"
+foreground = "#c0caf5"
+EOF
+
+mkdir -p ~/.config/nvim/lua/plugins ~/.config/nvim/lua/config
+
+cat <<'EOF' >~/.config/nvim/lua/config/lazy.lua
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not (vim.uv or vim.loop).fs_stat(lazypath) then
+  local lazyrepo = "https://github.com/folke/lazy.nvim.git"
+  vim.fn.system({ "git", "clone", "--filter=blob:none", "--branch=stable", lazyrepo, lazypath })
+end
+vim.opt.rtp:prepend(lazypath)
+require("lazy").setup({
+  spec = {
+    { "LazyVim/LazyVim", import = "lazyvim.plugins" },
+    { import = "lazyvim.plugins.extras.lang.go" },
+    { import = "lazyvim.plugins.extras.lang.terraform" },
+    { import = "lazyvim.plugins.extras.lang.markdown" },
+    { import = "lazyvim.plugins.extras.lang.svelte" },
+    { import = "plugins" },
+  },
+  defaults = { lazy = false, version = false },
+  install = { colorscheme = { "tokyonight" } },
+})
+EOF
+
+echo "⚙️  Configuring Neovim options..."
+cat <<'EOF' >~/.config/nvim/lua/config/options.lua
+-- Disable swap files completely to prevent E325 errors
+vim.opt.swapfile = false
+
+-- Broadcast the current file/project to the Alacritty window title
+vim.opt.title = true
+EOF
+
+cat <<'EOF' >~/.config/nvim/lua/plugins/treesitter.lua
+return {
+  "nvim-treesitter/nvim-treesitter",
+  opts = function(_, opts)
+    if type(opts.ensure_installed) == "table" then
+      vim.list_extend(opts.ensure_installed, { 
+        "css", "html", "javascript", "typescript", "json",
+        "go", "gomod", "gowork", "gosum", 
+        "terraform", "hcl",
+        "svelte"
+      })
+    end
+  end,
+}
+EOF
+
+cat <<'EOF' >~/.config/nvim/lua/plugins/lsp.lua
+return {
+  "neovim/nvim-lspconfig",
+  opts = { servers = { biome = {}, gopls = {}, terraformls = {}, svelte = {} } }
+}
+EOF
+
+cat <<'EOF' >~/.config/nvim/lua/plugins/formatting.lua
+return {
+  "stevearc/conform.nvim",
+  opts = {
+    formatters_by_ft = {
+      go = { "goimports", "gofmt" },
+      terraform = { "terraform_fmt" },
+      tf = { "terraform_fmt" },
+      ["terraform-vars"] = { "terraform_fmt" },
+      javascript = { "biome" },
+      typescript = { "biome" },
+      javascriptreact = { "biome" },
+      typescriptreact = { "biome" },
+      css = { "biome" },
+      json = { "biome" },
+    },
+  },
+}
+EOF
+
+cat <<'EOF' >~/.config/nvim/lua/plugins/theme.lua
+return {
+  { "folke/tokyonight.nvim", lazy = false, priority = 1000, opts = { style = "night" } },
+  { "LazyVim/LazyVim", opts = { colorscheme = "tokyonight" } },
+}
+EOF
+
+echo "⚙️  Disabling smooth scrolling animations..."
+cat <<'EOF' >~/.config/nvim/lua/plugins/ui.lua
+return {
+  -- Disable mini.animate (used in older LazyVim versions)
+  { "echasnovski/mini.animate", enabled = false },
+  
+  -- Disable Snacks smooth scroll (used in newer LazyVim versions)
+  {
+    "folke/snacks.nvim",
+    opts = {
+      scroll = { enabled = false },
+    }
+  }
+}
+EOF
+
+echo "⌨️  Injecting 'jk' escape shortcut into Neovim..."
+
+cat <<'EOF' >~/.config/nvim/lua/config/keymaps.lua
+-- Press jk fast to exit insert mode 
+vim.keymap.set("i", "jk", "<esc>", { desc = "Exit insert mode" })
+EOF
+
+# ------------------------------------------------------------------------------
+# 6. HEADLESS PLUGIN SYNC
+# ------------------------------------------------------------------------------
+echo "⚙️  Syncing Neovim Plugins and Parsers..."
+export PATH="$BIN_DIR:$HOME/.local/node/bin:$PATH"
+
+nvim --headless "+Lazy! sync" +qa
+TS_LUA="require('lazy').load({plugins={'nvim-treesitter'}}); require('nvim-treesitter.install').update({with_sync=true}); vim.cmd('qa')"
+nvim --headless -c "lua $TS_LUA"
+
+echo "=============================================================================="
+echo "🎉 Secure IDE environment is synced and ready!"
+echo "=============================================================================="
