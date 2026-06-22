@@ -6,8 +6,8 @@ set -euo pipefail
 # CONFIGURATION MODE: Enforces script defaults on every run (Overwrites local tweaks)
 # ==============================================================================
 
-# 🔒 Enforce strict permissions
-umask 022
+# 🔒 Enforce strict permissions (Only owner can read/write/execute)
+umask 077
 
 echo "🛠️ Bootstrapping & Syncing macOS Zero-Trust Environment..."
 
@@ -116,10 +116,10 @@ TS_SHA="sha256:024e2cee34723524d62d41bde4d2b4af23c8bbe0236e116c79c0b37d9575889e"
 
 # TruffleHog
 # sha: https://github.com/trufflesecurity/trufflehog/releases
-TRUFFLEHOG_VERSION="3.90.11"
+TRUFFLEHOG_VERSION="3.95.6"
 TRUFFLEHOG_FILE="trufflehog_${TRUFFLEHOG_VERSION}_darwin_arm64.tar.gz"
 TRUFFLEHOG_URL="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/${TRUFFLEHOG_FILE}"
-TRUFFLEHOG_SHA="sha256:"" # ⚠️ REPLACE ME
+TRUFFLEHOG_SHA="sha256:sha256:a31879b8fdf68e6f6b739bea1ae812660d43b11f4c980131ab6cb2b81aef3041"
 
 # --- Dynamically Verified Tools (No Manual SHA Needed) ---
 LAZYGIT_VERSION="v0.61.1"
@@ -285,6 +285,8 @@ if needs_update "Go" "$GO_VERSION"; then
   rm -rf "$LOCAL_DIR/go" && tar -xzf "$CACHE_DIR/go.tar.gz" -C "$LOCAL_DIR"
   ln -sf "$LOCAL_DIR/go/bin/go" "$BIN_DIR/go"
   xattr -r -d com.apple.quarantine "$LOCAL_DIR/go" 2>/dev/null || true
+  echo "🔒 Locking Go environment (No auto-updates, strict proxy, strict checksums)..."
+  env GOPATH="$HOME/go" "$LOCAL_DIR/go/bin/go" env -w GOTOOLCHAIN=local GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org
   mark_updated "Go" "$GO_VERSION"
 fi
 
@@ -296,6 +298,8 @@ if needs_update "Node" "$NODE_VERSION"; then
   ln -sf "$LOCAL_DIR/node/bin/npm" "$BIN_DIR/npm"
   ln -sf "$LOCAL_DIR/node/bin/npx" "$BIN_DIR/npx"
   xattr -r -d com.apple.quarantine "$LOCAL_DIR/node" 2>/dev/null || true
+  echo "🔒 Disabling NPM lifecycle scripts to prevent malicious post-install execution..."
+  "$BIN_DIR/npm" config set ignore-scripts true --global
   mark_updated "Node" "$NODE_VERSION"
 fi
 
@@ -382,13 +386,12 @@ echo "🧹 Cleaning up raw downloaded archives..."
 rm -rf "$CACHE_DIR"/*
 
 # ------------------------------------------------------------------------------
-# 4. UTILITY SCRIPTS & GIT HOOKS
+# 4. UTILITY SCRIPTS, COMPILATION & GIT HOOKS
 # ------------------------------------------------------------------------------
 
 echo "📜 Linking custom utility scripts to local bin..."
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-if [ -d "$ROOT_DIR/scripts" ]; then
-  for script in "$ROOT_DIR/scripts"/*.sh; do
+if [ -d "$SCRIPT_DIR/scripts" ]; then
+  for script in "$SCRIPT_DIR/scripts"/*.sh; do
     if [ -f "$script" ]; then
       script_name=$(basename "$script" .sh)
       chmod +x "$script"
@@ -398,9 +401,29 @@ if [ -d "$ROOT_DIR/scripts" ]; then
   done
 fi
 
+echo "📦 Compiling custom local tools from src/..."
+if [ -d "$SCRIPT_DIR/src" ]; then
+  for tool_dir in "$SCRIPT_DIR/src"/*/; do
+    if [ -d "$tool_dir" ]; then
+      tool_name=$(basename "$tool_dir")
+      echo "   ⚙️  Compiling $tool_name..."
+      cd "$tool_dir" || continue
+
+      # Auto-detect Go modules and compile securely using our local Go binary
+      if [ -f "go.mod" ]; then
+        env CGO_ENABLED=0 "$LOCAL_DIR/go/bin/go" build -o "$BIN_DIR/$tool_name" .
+        echo "   ✅ Installed: $tool_name"
+      else
+        echo "   ⏭️  Skipped: $tool_name (No go.mod found)"
+      fi
+      cd "$CACHE_DIR" || exit
+    fi
+  done
+fi
+
 echo "🛡️  Configuring TruffleHog global Git hooks..."
-if [ -f "$SCRIPT_DIR/hog-setup.sh" ]; then
-  bash "$SCRIPT_DIR/hog-setup.sh"
+if [ -f "$SCRIPT_DIR/scripts/hog-setup.sh" ]; then
+  bash "$SCRIPT_DIR/scripts/hog-setup.sh"
 fi
 
 # ------------------------------------------------------------------------------
@@ -426,8 +449,45 @@ EOF
 chmod +x "$BIN_DIR/docker-compose"
 
 echo "⚠️  NOTE: Docker is running entirely inside a VM via SSH wrappers."
+echo "⚠️  NOTE: Docker is running entirely inside a VM via SSH wrappers."
 echo "   - Volume mounts (-v) will only work for paths within /Users."
 echo "   - To mount paths outside /Users, run: colima start --edit"
+
+echo "⚙️  Detecting system hardware for optimal Colima allocation..."
+# Get total RAM in GB and logical CPU cores
+SYS_RAM_GB=$(($(sysctl -n hw.memsize) / 1073741824))
+SYS_CPU_CORES=$(sysctl -n hw.ncpu)
+
+# Smart allocation:
+# - RAM: ~25-30% of total system RAM, minimum 2GB, max 8GB.
+# - CPU: Half of available cores, minimum 2, max 4.
+COLIMA_MEM=$((SYS_RAM_GB / 4))
+[ "$COLIMA_MEM" -lt 2 ] && COLIMA_MEM=2
+[ "$COLIMA_MEM" -gt 8 ] && COLIMA_MEM=8
+
+COLIMA_CPU=$((SYS_CPU_CORES / 2))
+[ "$COLIMA_CPU" -lt 2 ] && COLIMA_CPU=2
+[ "$COLIMA_CPU" -gt 4 ] && COLIMA_CPU=4
+
+echo "   👉 Host has ${SYS_RAM_GB}GB RAM and ${SYS_CPU_CORES} CPUs."
+echo "   👉 Allocating ${COLIMA_MEM}GB RAM and ${COLIMA_CPU} CPUs to Colima."
+
+mkdir -p "$HOME/.colima/default"
+cat <<EOF >"$HOME/.colima/default/colima.yaml"
+# Dynamic Hardware Limits
+cpu: ${COLIMA_CPU}
+disk: 60
+memory: ${COLIMA_MEM}
+
+# Apple Silicon Optimizations (Stops corruption, networking loops, and CPU spikes)
+vmType: vz
+rosetta: true
+mountType: virtiofs
+
+# Network Security
+network:
+  address: false # Disables reachable IP bridge; relies entirely on strict localhost port forwarding
+EOF
 
 echo "🔗 Checking shell PATH configuration..."
 ZSHRC="$HOME/.zshrc"

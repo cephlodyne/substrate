@@ -22,8 +22,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 1. REMOVE GLOBAL GIT HOOKS (TruffleHog)
 # ------------------------------------------------------------------------------
 echo "🛡️  Removing TruffleHog global Git hooks..."
-if [ -f "$SCRIPT_DIR/hog-uninstall.sh" ]; then
-  bash "$SCRIPT_DIR/hog-uninstall.sh"
+if [ -f "$SCRIPT_DIR/scripts/hog-uninstall.sh" ]; then
+  bash "$SCRIPT_DIR/scripts/hog-uninstall.sh"
 else
   git config --global --unset core.hooksPath 2>/dev/null || true
   rm -rf "$HOME/.git-hooks" "$HOME/.trufflehog-tmp"
@@ -115,13 +115,12 @@ BINARIES_TO_REMOVE=(
   "colima" "lima" "limactl" "docker" "docker-compose" "gcloud"
   "go" "node" "npm" "npx" "pnpm" "pnpx" "nvim" "rg" "fd"
   "lazygit" "tree-sitter" "tofu" "tofu-ls" "terraform" "terraform-ls"
-  "gopls" "goimports" "consolidate" "trufflehog"
+  "gopls" "goimports" "trufflehog" "govulnfix"
 )
 
 # Dynamically find and remove any symlinks we created from the scripts directory
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-if [ -d "$ROOT_DIR/scripts" ]; then
-  for script in "$ROOT_DIR/scripts"/*.sh; do
+if [ -d "$SCRIPT_DIR/scripts" ]; then
+  for script in "$SCRIPT_DIR/scripts"/*.sh; do
     if [ -f "$script" ]; then
       BINARIES_TO_REMOVE+=("$(basename "$script" .sh)")
     fi
@@ -142,7 +141,6 @@ if [ -f "$ZSHRC" ]; then
   sed -i '' '/export PATH="$HOME\/.local\/bin:$PATH"/d' "$ZSHRC"
   sed -i '' '/export PATH="$HOME\/.local\/node\/bin:$PATH"/d' "$ZSHRC"
   sed -i '' '/export PATH="$PATH:$HOME\/go\/bin"/d' "$ZSHRC"
-  sed -i '' '/export DOCKER_HOST="unix:\/\/$HOME\/.colima\/default\/docker.sock"/d' "$ZSHRC"
 fi
 
 echo "=============================================================================="
