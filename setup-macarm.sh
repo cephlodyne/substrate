@@ -228,6 +228,8 @@ if needs_update "Colima" "$COLIMA_VERSION"; then
   fetch_and_verify "Colima" "$COLIMA_URL" "$COLIMA_FILE" "colima" "$COLIMA_SHA"
   cp "$CACHE_DIR/colima" "$BIN_DIR/colima" && chmod +x "$BIN_DIR/colima"
   xattr -r -d com.apple.quarantine "$BIN_DIR/colima" 2>/dev/null || true
+  echo "🖋️  Cryptographic check passed. Signing binary for Apple Silicon execution..."
+  codesign --force --deep --sign - "$BIN_DIR/colima"
   mark_updated "Colima" "$COLIMA_VERSION"
 fi
 
