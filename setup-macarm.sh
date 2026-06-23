@@ -43,10 +43,10 @@ LIMA_SHA="sha256:52bcf0780fcb28128ac9f6924d4410a6bc7c92fa80c9a858d89ae34ec3ce4f3
 # Google Cloud SDK
 # look at the windows releases to see the version number
 # sha: https://cloud.google.com/sdk/docs/downloads-versioned-archives
-GCLOUD_VERSION="573.0.0"
+GCLOUD_VERSION="574.0.0"
 GCLOUD_FILE="google-cloud-cli-darwin-arm.tar.gz"
 GCLOUD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_FILE}"
-GCLOUD_SHA="65582afb4c5f9f020831785978c8a0a158f627224bc3ac4573fae53c414abf00"
+GCLOUD_SHA="acc178481ddb42217c9299bf27b0f80a9c6d88bea349d9e7209f1e8a750dfd38"
 
 # Alacritty
 # sha: https://github.com/alacritty/alacritty/releases
