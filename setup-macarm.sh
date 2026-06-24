@@ -22,7 +22,6 @@ fi
 # ==============================================================================
 # 1. TOOL VERSIONS, URLS & SHAS (macOS ARM64)
 # ==============================================================================
-# ⚠️ ACTION REQUIRED: Replace "000..." with actual SHA-256 checksums.
 
 # --- Infrastructure & Virtualization ---
 
@@ -114,23 +113,29 @@ TRUFFLEHOG_FILE="trufflehog_${TRUFFLEHOG_VERSION}_darwin_arm64.tar.gz"
 TRUFFLEHOG_URL="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/${TRUFFLEHOG_FILE}"
 TRUFFLEHOG_SHA="sha256:a31879b8fdf68e6f6b739bea1ae812660d43b11f4c980131ab6cb2b81aef3041"
 
-# --- Dynamically Verified Tools (No Manual SHA Needed) ---
+# Lazygit
+# sha: https://github.com/jesseduffield/lazygit/releases
 LAZYGIT_VERSION="v0.62.2"
 LAZYGIT_FILE="lazygit_${LAZYGIT_VERSION#v}_darwin_arm64.tar.gz"
 LAZYGIT_URL="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/${LAZYGIT_FILE}"
-LAZYGIT_SHA_SOURCE="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/checksums.txt"
+LAZYGIT_SHA="sha256:f311d96b666b4865760e39f3967edfd7bf30b5d09e52a1bc7ae511f6bdfdd02c"
 
+# Tofu
+# sha: https://github.com/opentofu/opentofu/releases
 TOFU_VERSION="1.12.3"
 TOFU_FILE="tofu_${TOFU_VERSION}_darwin_arm64.zip"
 TOFU_URL="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/${TOFU_FILE}"
-TOFU_SHA_SOURCE="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS"
+TOFU_SHA="sha256:2b81c065cdcf5e573cfb5d9e0c663ac4cfc32512927078b645b58ef81cec2474"
 
+# Toffuls
+# sha: https://github.com/opentofu/tofu-ls/releases
 TOFULS_VERSION="0.5.0"
 TOFULS_FILE="tofu-ls_Darwin_arm64.tar.gz"
 TOFULS_URL="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERSION}/${TOFULS_FILE}"
-TOFULS_SHA_SOURCE="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERSION}/tofu-ls_${TOFULS_VERSION}_checksums.txt"
+TOFULS_SHA="sha256:9910ae24c15662f69b9cc51115c0ffb65b6e2d328d41e930118ad8ed1ec95637"
 
 # --- Global Packages (Pinned for Zero-Trust Updates) ---
+
 GOPLS_VERSION="v0.22.0"
 GOIMPORTS_VERSION="v0.46.0"
 PNPM_VERSION="11.8.0"
@@ -326,7 +331,7 @@ if needs_update "fd" "$FD_VERSION"; then
 fi
 
 if needs_update "Lazygit" "$LAZYGIT_VERSION"; then
-  fetch_and_verify "Lazygit" "$LAZYGIT_URL" "$LAZYGIT_FILE" "lazygit.tar.gz" "$LAZYGIT_SHA_SOURCE"
+  fetch_and_verify "Lazygit" "$LAZYGIT_URL" "$LAZYGIT_FILE" "lazygit.tar.gz" "$LAZYGIT_SHA"
   tar -xzf "$CACHE_DIR/lazygit.tar.gz" -C "$CACHE_DIR"
   mv "$CACHE_DIR/lazygit" "$BIN_DIR/lazygit"
   xattr -r -d com.apple.quarantine "$BIN_DIR/lazygit" 2>/dev/null || true
@@ -349,8 +354,8 @@ if needs_update "TruffleHog" "$TRUFFLEHOG_VERSION"; then
 fi
 
 if needs_update "OpenTofu" "${TOFU_VERSION}_${TOFULS_VERSION}"; then
-  fetch_and_verify "OpenTofu" "$TOFU_URL" "$TOFU_FILE" "tofu.zip" "$TOFU_SHA_SOURCE"
-  fetch_and_verify "OpenTofu LS" "$TOFULS_URL" "$TOFULS_FILE" "tofu-ls.tar.gz" "$TOFULS_SHA_SOURCE"
+  fetch_and_verify "OpenTofu" "$TOFU_URL" "$TOFU_FILE" "tofu.zip" "$TOFU_SHA"
+  fetch_and_verify "OpenTofu LS" "$TOFULS_URL" "$TOFULS_FILE" "tofu-ls.tar.gz" "$TOFULS_SHA"
   unzip -q -o "$CACHE_DIR/tofu.zip" -d "$BIN_DIR"
   tar -xzf "$CACHE_DIR/tofu-ls.tar.gz" -C "$BIN_DIR"
   ln -sf "$BIN_DIR/tofu" "$BIN_DIR/terraform"
@@ -513,6 +518,7 @@ echo "⚙️  Enforcing Alacritty & Neovim configuration defaults..."
 mkdir -p ~/.config/alacritty
 cat <<EOF >~/.config/alacritty/alacritty.toml
 [window]
+dimensions = { columns = 120, lines = 35 }
 padding = { x = 12, y = 12 }
 opacity = 0.95
 option_as_alt = "Both"
