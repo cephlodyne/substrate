@@ -377,7 +377,7 @@ check_opentofu
 
 echo -e "\n--- Core Applications ---"
 check_github "Alacritty" "alacritty/alacritty"
-check_github "Chromium" "ungoogled-software/ungoogled-chromium-macos"
+check_github "Brave" "brave/brave-browser"
 check_github "JetBrainsMono" "ryanoasis/nerd-fonts"
 check_github "Neovim" "neovim/neovim"
 

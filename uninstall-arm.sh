@@ -92,14 +92,6 @@ elif [[ -d "$HOME/Applications/Alacritty.app" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 7. REMOVE CHROMIUM APP
-# ------------------------------------------------------------------------------
-if [[ -d "$HOME/Applications/Chromium.app" ]]; then
-  echo "🗑️  Removing Chromium.app from User Applications..."
-  rm -rf "$HOME/Applications/Chromium.app"
-fi
-
-# ------------------------------------------------------------------------------
 # 8. REMOVE FONTS
 # ------------------------------------------------------------------------------
 echo "🔤 Removing JetBrains Mono Nerd Font..."

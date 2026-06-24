@@ -55,13 +55,6 @@ ALACRITTY_FILE="Alacritty-${ALACRITTY_VERSION}.dmg"
 ALACRITTY_URL="https://github.com/alacritty/alacritty/releases/download/${ALACRITTY_VERSION}/${ALACRITTY_FILE}"
 ALACRITTY_SHA="sha256:ad8d7de35fb38e43184776cac6dfee05ca325caa0b6639a06a55e54e4b026620"
 
-# Ungoogled Chromium
-# sha: https://github.com/ungoogled-software/ungoogled-chromium-macos/releases
-CHROMIUM_VERSION="149.0.7827.155-1.1"
-CHROMIUM_FILE="ungoogled-chromium_${CHROMIUM_VERSION}_arm64-macos.dmg"
-CHROMIUM_URL="https://github.com/ungoogled-software/ungoogled-chromium-macos/releases/download/${CHROMIUM_VERSION}/${CHROMIUM_FILE}"
-CHROMIUM_SHA="sha256:779200bfc9dd8c113660ce147d59d817093949d33d6b95f123ffb4db6277c1bc"
-
 # JetBrains Mono Nerd Font
 # sha: https://github.com/ryanoasis/nerd-fonts/releases
 JB_MONO_VERSION="v3.4.0"
@@ -266,17 +259,6 @@ if needs_update "Alacritty" "$ALACRITTY_VERSION"; then
   hdiutil detach /Volumes/Alacritty -quiet
   xattr -r -d com.apple.quarantine /Applications/Alacritty.app 2>/dev/null || true
   mark_updated "Alacritty" "$ALACRITTY_VERSION"
-fi
-
-if needs_update "Chromium" "$CHROMIUM_VERSION"; then
-  fetch_and_verify "Ungoogled Chromium" "$CHROMIUM_URL" "$CHROMIUM_FILE" "chromium.dmg" "$CHROMIUM_SHA"
-  hdiutil attach "$CACHE_DIR/chromium.dmg" -mountpoint /Volumes/Chromium -nobrowse -quiet
-  mkdir -p "$HOME/Applications"
-  rm -rf "$HOME/Applications/Chromium.app" 2>/dev/null || true
-  cp -R /Volumes/Chromium/Chromium.app "$HOME/Applications/"
-  hdiutil detach /Volumes/Chromium -quiet
-  xattr -r -d com.apple.quarantine "$HOME/Applications/Chromium.app" 2>/dev/null || true
-  mark_updated "Chromium" "$CHROMIUM_VERSION"
 fi
 
 if needs_update "JetBrainsMono" "$JB_MONO_VERSION"; then
