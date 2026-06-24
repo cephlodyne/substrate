@@ -4,10 +4,10 @@
 # for now the solution is on macs to use safari as the default browser and use
 # chrome when needed for ui testing.
 #
+# the following settings turn off all tracking, calling home & ai features from chrome
+#
 # these setting can be reverted by the following command:
 # defaults delete com.google.Chrome && killall cfprefsd
-#
-# the following settings turn off all tracking, calling home & ai features from chrome
 
 #!/bin/bash
 set -euo pipefail
