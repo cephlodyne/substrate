@@ -1,10 +1,14 @@
 # I had tried to manage a browser with this setup using
 # something like brave or ungoogled chromium, but I don't think the security
-# is there (e.g. i was trying brave but the policy settings wouldn't work on a mack)
+# is there (e.g. i was trying brave but the policy settings wouldn't work on a mac)
 # for now the solution is on macs to use safari as the default browser and use
 # chrome when needed for ui testing.
+#
 # these setting can be reverted by the following command:
 # defaults delete com.google.Chrome && killall cfprefsd
+#
+# the following settings turn off all tracking, calling home & ai features from chrome
+
 #!/bin/bash
 set -euo pipefail
 
@@ -56,3 +60,4 @@ killall cfprefsd
 
 echo "✅ Chrome lockdown complete!"
 echo "👉 Open Chrome and visit 'chrome://policy' to verify."
+
