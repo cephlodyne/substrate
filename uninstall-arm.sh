@@ -65,6 +65,7 @@ rm -rf "$LOCAL_DIR/google-cloud-sdk"
 rm -rf "$LOCAL_DIR/go"
 rm -rf "$HOME/go"        # Removes Go module cache and any user-installed Go binaries
 rm -rf "$LOCAL_DIR/node" # This automatically removes global Biome & npm packages
+rm -rf "$LOCAL_DIR/include/google"
 rm -rf "$CACHE_DIR"
 rm -f "$LOCAL_DIR/.ide_receipts" # Removes the smart-update ledger
 
@@ -107,7 +108,7 @@ BINARIES_TO_REMOVE=(
   "colima" "lima" "limactl" "docker" "docker-compose" "gcloud"
   "go" "node" "npm" "npx" "pnpm" "pnpx" "nvim" "rg" "fd"
   "lazygit" "tree-sitter" "tofu" "tofu-ls" "terraform" "terraform-ls"
-  "gopls" "goimports" "trufflehog" "govulnfix"
+  "gopls" "goimports" "trufflehog" "govulnfix" "protoc"
 )
 
 # Dynamically find and remove any symlinks we created from the scripts directory

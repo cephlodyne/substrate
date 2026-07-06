@@ -99,6 +99,13 @@ FD_FILE="fd-$FD_VERSION-aarch64-apple-darwin.tar.gz"
 FD_URL="https://github.com/sharkdp/fd/releases/download/$FD_VERSION/${FD_FILE}"
 FD_SHA="sha256:623dc0afc81b92e4d4606b380d7bc91916ba7b97814263e554d50923a39e480a"
 
+# Protoc (Protocol Buffers Compiler)
+# sha: https://github.com/protocolbuffers/protobuf/releases
+PROTOC_VERSION="35.1"
+PROTOC_FILE="protoc-${PROTOC_VERSION}-osx-aarch_64.zip"
+PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_FILE}"
+PROTOC_SHA="sha256:193289af0470c6a1aada357d4fba0bbf8d78bfaac8b5e42ca30af2ef75583de2"
+
 # Tree-sitter
 # sha: https://github.com/tree-sitter/tree-sitter/releases
 TS_VERSION="v0.26.10"
@@ -328,6 +335,25 @@ if needs_update "fd" "$FD_VERSION"; then
   mv "$CACHE_DIR/fd-$FD_VERSION-aarch64-apple-darwin/fd" "$BIN_DIR/fd"
   xattr -r -d com.apple.quarantine "$BIN_DIR/fd" 2>/dev/null || true
   mark_updated "fd" "$FD_VERSION"
+fi
+
+if needs_update "Protoc" "$PROTOC_VERSION"; then
+  fetch_and_verify "Protoc" "$PROTOC_URL" "$PROTOC_FILE" "protoc.zip" "$PROTOC_SHA"
+
+  mkdir -p "$CACHE_DIR/protoc"
+  unzip -q -o "$CACHE_DIR/protoc.zip" -d "$CACHE_DIR/protoc"
+
+  # 1. Install the binary
+  mv "$CACHE_DIR/protoc/bin/protoc" "$BIN_DIR/protoc"
+  chmod +x "$BIN_DIR/protoc"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/protoc" 2>/dev/null || true
+
+  # 2. Install the standard Protobuf includes (Required for descriptor.proto)
+  # protoc automatically looks in ../include relative to its binary location
+  mkdir -p "$LOCAL_DIR/include"
+  cp -R "$CACHE_DIR/protoc/include/" "$LOCAL_DIR/include/"
+
+  mark_updated "Protoc" "$PROTOC_VERSION"
 fi
 
 if needs_update "Lazygit" "$LAZYGIT_VERSION"; then
