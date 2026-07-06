@@ -34,18 +34,18 @@ COLIMA_SHA="sha256:980ad8bf61a4ca370243f4cb41401a61276dcd2c2502bee7b9b86f9250169
 
 # Lima
 # sha: https://github.com/lima-vm/lima/releases
-LIMA_VERSION="v2.1.3"
+LIMA_VERSION="v2.1.4"
 LIMA_FILE="lima-${LIMA_VERSION#v}-Darwin-arm64.tar.gz"
 LIMA_URL="https://github.com/lima-vm/lima/releases/download/${LIMA_VERSION}/${LIMA_FILE}"
-LIMA_SHA="sha256:52bcf0780fcb28128ac9f6924d4410a6bc7c92fa80c9a858d89ae34ec3ce4f35"
+LIMA_SHA="sha256:14c5b283f1c5eb4078e5a300b8d241f69197a3e41326dfc685a69c9455917acf"
 
 # Google Cloud SDK
 # look at the windows releases to see the version number
 # sha: https://cloud.google.com/sdk/docs/downloads-versioned-archives
-GCLOUD_VERSION="574.0.0"
+GCLOUD_VERSION="575.0"
 GCLOUD_FILE="google-cloud-cli-darwin-arm.tar.gz"
 GCLOUD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_FILE}"
-GCLOUD_SHA="acc178481ddb42217c9299bf27b0f80a9c6d88bea349d9e7209f1e8a750dfd38"
+GCLOUD_SHA="b4edcca2e5312748ecf6235197970ed0944a2a1318d8aa268a3e3314e7d302b3"
 
 # Alacritty
 # sha: https://github.com/alacritty/alacritty/releases
@@ -71,7 +71,7 @@ GO_URL="https://go.dev/dl/${GO_FILE}"
 GO_SHA="b62ad2b6d7d2464f12a5bcad7ff47f19d08325773b5efd21610e445a05a9bf53"
 
 # Node.js
-NODE_VERSION="v24.17.0"
+NODE_VERSION="v24.18.0"
 NODE_FILE="node-${NODE_VERSION}-darwin-arm64.tar.xz"
 NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_FILE}"
 NODE_SHA_SOURCE="https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt"
@@ -101,24 +101,24 @@ FD_SHA="sha256:623dc0afc81b92e4d4606b380d7bc91916ba7b97814263e554d50923a39e480a"
 
 # Tree-sitter
 # sha: https://github.com/tree-sitter/tree-sitter/releases
-TS_VERSION="v0.26.9"
+TS_VERSION="v0.26.10"
 TS_FILE="tree-sitter-macos-arm64.gz"
 TS_URL="https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/${TS_FILE}"
-TS_SHA="sha256:e46725b2417c085b0761948abc0cc240bff6a3ab5d2128e3ad0de467ded3388d"
+TS_SHA="sha256:821a387182db59a1942a90a1fbd8f9756d9926e2c265f5c7b9a23c523114134a"
 
 # TruffleHog
 # sha: https://github.com/trufflesecurity/trufflehog/releases
-TRUFFLEHOG_VERSION="3.95.6"
+TRUFFLEHOG_VERSION="3.95.8"
 TRUFFLEHOG_FILE="trufflehog_${TRUFFLEHOG_VERSION}_darwin_arm64.tar.gz"
 TRUFFLEHOG_URL="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/${TRUFFLEHOG_FILE}"
-TRUFFLEHOG_SHA="sha256:a31879b8fdf68e6f6b739bea1ae812660d43b11f4c980131ab6cb2b81aef3041"
+TRUFFLEHOG_SHA="sha256:d6ed1f34499b97aae275e400a207c6f5d5c25b0626ddc464b82c104a719cd33b"
 
 # Lazygit
 # sha: https://github.com/jesseduffield/lazygit/releases
-LAZYGIT_VERSION="v0.62.2"
+LAZYGIT_VERSION="v0.63.0"
 LAZYGIT_FILE="lazygit_${LAZYGIT_VERSION#v}_darwin_arm64.tar.gz"
 LAZYGIT_URL="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/${LAZYGIT_FILE}"
-LAZYGIT_SHA="sha256:f311d96b666b4865760e39f3967edfd7bf30b5d09e52a1bc7ae511f6bdfdd02c"
+LAZYGIT_SHA="sha256:60e6bf29a1501a57a9d078538aa576a1b4db45779db2e3dd6931a7207f560a9c"
 
 # Tofu
 # sha: https://github.com/opentofu/opentofu/releases
@@ -127,19 +127,19 @@ TOFU_FILE="tofu_${TOFU_VERSION}_darwin_arm64.zip"
 TOFU_URL="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/${TOFU_FILE}"
 TOFU_SHA="sha256:2b81c065cdcf5e573cfb5d9e0c663ac4cfc32512927078b645b58ef81cec2474"
 
-# Toffuls
+# Open Tofu LS
 # sha: https://github.com/opentofu/tofu-ls/releases
-TOFULS_VERSION="0.5.0"
+TOFULS_VERSION="0.5.2"
 TOFULS_FILE="tofu-ls_Darwin_arm64.tar.gz"
 TOFULS_URL="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERSION}/${TOFULS_FILE}"
-TOFULS_SHA="sha256:9910ae24c15662f69b9cc51115c0ffb65b6e2d328d41e930118ad8ed1ec95637"
+TOFULS_SHA="sha256:935852b3a3264d3a9ae6192c309beefe2de58b4fe2d4cceb19c110f6b82b9f60"
 
 # --- Global Packages (Pinned for Zero-Trust Updates) ---
 
 GOPLS_VERSION="v0.22.0"
-GOIMPORTS_VERSION="v0.46.0"
-PNPM_VERSION="11.8.0"
-BIOME_VERSION="2.5.0"
+GOIMPORTS_VERSION="v0.47.0"
+PNPM_VERSION="11.10.0"
+BIOME_VERSION="2.5.2"
 
 # ==============================================================================
 # Paths & Ledger Setup

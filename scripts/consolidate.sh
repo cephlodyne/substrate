@@ -1,45 +1,21 @@
 #!/bin/bash
-# Used to consolidate multiple files into an LLM-optimized single file.
+# Used to consolidate a codebase into an LLM-optimized single XML file.
+# Automatically filters out binary files and common massive directories.
 
 # --- Configuration & Defaults ---
-AUTO_DETECT=1
-GO_MODE=0
-WEB_MODE=0
-TF_MODE=0
-PY_MODE=0
+OUTPUT_FILE="files-consolidated.xml"
 TARGET_DIRS=()
-OUTPUT_FILE="files-consolidated.xml" # <- This is the variable that was missing/empty
-SIZE_WARNING_THRESHOLD=500000        # 500KB (Roughly ~125k-150k LLM tokens)
+SIZE_WARNING_THRESHOLD=500000 # ~125k-150k LLM tokens
 
-# Base exclusions (always ignored to save LLM tokens)
-EXCLUDE_DIRS=("node_modules" "dist" "build" "public" "vendor" "bin" "__pycache__")
+# Standard directories to always ignore (saves traversal time and tokens)
+EXCLUDE_DIRS=("node_modules" "dist" "build" "public" "vendor" "bin" "__pycache__" "venv" ".venv" ".next" "out")
 
-# Specific token-heavy files that offer no logic value to LLMs
-EXCLUDE_FILES=("go.sum" "package-lock.json" "yarn.lock" "pnpm-lock.yaml" "poetry.lock" "*.tfstate" "*.tfstate.backup")
+# Specific token-heavy/generated files that offer no logic value to LLMs
+EXCLUDE_FILES=("go.sum" "package-lock.json" "yarn.lock" "pnpm-lock.yaml" "poetry.lock" "*.tfstate" "*.tfstate.backup" "*.min.js" "*.min.css" "*.map" ".DS_Store")
 
 # --- Parse Arguments ---
 while [[ "$#" -gt 0 ]]; do
   case $1 in
-  --go | -g)
-    GO_MODE=1
-    AUTO_DETECT=0
-    shift
-    ;;
-  --web | --svelte | -w | -s)
-    WEB_MODE=1
-    AUTO_DETECT=0
-    shift
-    ;;
-  --tofu | --terraform | -t)
-    TF_MODE=1
-    AUTO_DETECT=0
-    shift
-    ;;
-  --python | -p)
-    PY_MODE=1
-    AUTO_DETECT=0
-    shift
-    ;;
   --output | -o)
     OUTPUT_FILE="$2"
     shift 2
@@ -55,112 +31,53 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-# Fallback in case OUTPUT_FILE is somehow still empty
 if [ -z "$OUTPUT_FILE" ]; then
   OUTPUT_FILE="files-consolidated.xml"
 fi
 
-# --- Determine Search Base ---
 if [ ${#TARGET_DIRS[@]} -gt 0 ]; then
   SEARCH_BASE=("${TARGET_DIRS[@]}")
 else
   SEARCH_BASE=(".")
 fi
 
-# --- Auto-Detect Project Types ---
-if [ "$AUTO_DETECT" -eq 1 ]; then
-  echo "🤖 Auto-detecting project types in ${SEARCH_BASE[*]}..."
-
-  # Scan up to 3 levels deep for defining files OR standard extensions
-  if [ -n "$(find "${SEARCH_BASE[@]}" -maxdepth 3 \( -name 'go.mod' -o -name '*.go' \) -print -quit 2>/dev/null)" ]; then GO_MODE=1; fi
-  if [ -n "$(find "${SEARCH_BASE[@]}" -maxdepth 3 \( -name 'package.json' -o -name '*.ts' -o -name '*.js' -o -name '*.svelte' \) -print -quit 2>/dev/null)" ]; then WEB_MODE=1; fi
-  if [ -n "$(find "${SEARCH_BASE[@]}" -maxdepth 3 \( -name '*.tf' -o -name '*.tofu' \) -print -quit 2>/dev/null)" ]; then TF_MODE=1; fi
-  if [ -n "$(find "${SEARCH_BASE[@]}" -maxdepth 3 \( -name 'requirements.txt' -o -name 'pyproject.toml' -o -name '*.py' \) -print -quit 2>/dev/null)" ]; then PY_MODE=1; fi
-fi
-
-# --- Build Extension Lists ---
-EXTENSIONS=()
-add_extension() {
-  if [ ${#EXTENSIONS[@]} -gt 0 ]; then EXTENSIONS+=("-o"); fi
-  EXTENSIONS+=("-name" "$1")
-}
-
-# 1. Base/Default Files
-add_extension "*.md"
-add_extension "*.sh"
-add_extension "*.yaml"
-add_extension "*.yml"
-add_extension "Dockerfile"
-add_extension "Makefile"
-
-# 2. Golang Files
-if [ "$GO_MODE" -eq 1 ]; then
-  echo "✅ Go mode enabled: Including .go, go.mod"
-  add_extension "*.go"
-  add_extension "go.mod"
-fi
-
-# 3. Web / Svelte / JS Files
-if [ "$WEB_MODE" -eq 1 ]; then
-  echo "✅ Web mode enabled: Including .ts, .js, .svelte, .css, .html, .json"
-  add_extension "*.svelte"
-  add_extension "*.ts"
-  add_extension "*.tsx"
-  add_extension "*.js"
-  add_extension "*.jsx"
-  add_extension "*.css"
-  add_extension "*.html"
-  add_extension "*.json"
-fi
-
-# 4. Terraform / OpenTofu Files
-if [ "$TF_MODE" -eq 1 ]; then
-  echo "✅ Infra mode enabled: Including .tf, .tofu, .tfvars, .hcl"
-  add_extension "*.tf"
-  add_extension "*.tofu"
-  add_extension "*.tfvars"
-  add_extension "*.hcl"
-fi
-
-# 5. Python Files
-if [ "$PY_MODE" -eq 1 ]; then
-  echo "✅ Python mode enabled: Including .py, requirements.txt, pyproject.toml"
-  add_extension "*.py"
-  add_extension "requirements.txt"
-  add_extension "pyproject.toml"
-fi
-
 # --- Build Prune & Exclude Logic ---
 PRUNE_LOGIC=()
 
-# IMPROVEMENT: Automatically prune ALL hidden directories (e.g., .git, .venv), but don't prune '.' or '..'
+# 1. Prune all hidden directories (e.g., .git, .idea, .vscode) but keep '.' and '..'
 PRUNE_LOGIC+=("-type" "d" "-name" ".*" "!" "-name" "." "!" "-name" ".." "-prune" "-o")
 
+# 2. Prune specific heavy directories
 for dir in "${EXCLUDE_DIRS[@]}"; do
   PRUNE_LOGIC+=("-type" "d" "-name" "$dir" "-prune" "-o")
 done
 
+# 3. Prune specific ignored files
 for file in "${EXCLUDE_FILES[@]}"; do
   PRUNE_LOGIC+=("-name" "$file" "-prune" "-o")
 done
 
-echo "🔍 Searching in: ${SEARCH_BASE[*]}"
+echo "🔍 Scanning: ${SEARCH_BASE[*]}"
 echo "📝 Output will be saved to: $OUTPUT_FILE"
 
-# --- Execute Find & Store in Array ---
+# --- Execute Find & Filter Binaries ---
 FILES=()
 while IFS= read -r -d '' file_path; do
-  FILES+=("$file_path")
-done < <(find "${SEARCH_BASE[@]}" "${PRUNE_LOGIC[@]}" -type f \( "${EXTENSIONS[@]}" \) -print0 2>/dev/null)
+  # Check if the file is binary using its mime-encoding
+  # If it is NOT binary, add it to our array
+  if ! file -b --mime-encoding "$file_path" | grep -q "binary"; then
+    FILES+=("$file_path")
+  fi
+done < <(find "${SEARCH_BASE[@]}" "${PRUNE_LOGIC[@]}" -type f -print0 2>/dev/null)
 
 FILE_COUNT=${#FILES[@]}
 
 if [ "$FILE_COUNT" -eq 0 ]; then
-  echo "⚠️ No files found matching the criteria."
+  echo "⚠️ No text files found matching the criteria."
   exit 0
 fi
 
-echo "📦 Compiling $FILE_COUNT file(s) into LLM context format..."
+echo "📦 Compiling $FILE_COUNT text file(s) into LLM context format..."
 
 # --- Write LLM Optimized Output ---
 >"$OUTPUT_FILE"
@@ -168,22 +85,20 @@ echo "📦 Compiling $FILE_COUNT file(s) into LLM context format..."
 cat <<'EOF' >>"$OUTPUT_FILE"
 <repository_context>
   <system_instructions>
-    You are an expert software engineer and architect. The following is a consolidated view of a codebase. 
-    First, review the 'directory_structure' to understand the project architecture. 
-    Then, review the files contained within the 'files' section. 
+    You are an expert software engineer and architect. Review the 'directory_structure' to understand the project architecture, then review the code in the 'files' section. 
     
-    CRITICAL RULES FOR YOUR RESPONSES:
-    1. NEVER output an entire file unless explicitly asked to do so. This wastes context window and degrades performance.
-    2. When suggesting changes, ONLY output the specific functions, blocks, or lines that need modification.
-    3. Clearly state which file you are modifying and provide enough surrounding context (a few lines above and below) so the user knows exactly where to paste the changes.
-    4. Think step-by-step: Briefly explain your reasoning and architectural plan BEFORE writing any code.
-    5. Do not apologize or use excessive conversational filler. Be direct, concise, and professional.
+    CRITICAL RULES:
+    1. NEVER output an entire file unless explicitly asked to do so.
+    2. When suggesting changes, ONLY output the specific blocks or lines that need modification.
+    3. Clearly state which file you are modifying and provide surrounding context (a few lines above and below).
+    4. Think step-by-step: Briefly explain your reasoning BEFORE writing code.
+    5. Be direct, concise, and professional.
   </system_instructions>
 
   <directory_structure>
 EOF
 
-# 1. Print Directory Index (Pure Bash/Awk Tree View)
+# 1. Print Directory Index
 printf "%s\n" "${FILES[@]}" | sort | awk -F'/' '{
   path=""
   for(i=1; i<=NF; i++) {
@@ -205,28 +120,25 @@ echo "  </directory_structure>" >>"$OUTPUT_FILE"
 echo "" >>"$OUTPUT_FILE"
 echo "  <files>" >>"$OUTPUT_FILE"
 
-# 2. Print File Contents
+# 2. Print File Contents inside CDATA blocks
 count=0
 
 for file_path in "${FILES[@]}"; do
   ((count++))
   display_path=${file_path#./}
 
-  filename="${display_path##*/}"
-  extension="${filename##*.}"
-  if [[ "$filename" == "$extension" ]]; then
-    extension="text"
-  fi
-
   echo -ne "\r⏳ Processing ($count/$FILE_COUNT): $display_path\033[K" >&2
 
+  # Wrap in XML and CDATA tags to prevent syntax characters from breaking the XML tree
   echo "    <file path=\"$display_path\">" >>"$OUTPUT_FILE"
-  echo '```'"$extension" >>"$OUTPUT_FILE"
+  echo "      <![CDATA[" >>"$OUTPUT_FILE"
 
+  # Inject the raw file contents
   cat "$file_path" >>"$OUTPUT_FILE"
-  echo "" >>"$OUTPUT_FILE"
 
-  echo '```' >>"$OUTPUT_FILE"
+  # Ensure there is a newline before closing CDATA in case the file doesn't end with one
+  echo "" >>"$OUTPUT_FILE"
+  echo "      ]]>" >>"$OUTPUT_FILE"
   echo "    </file>" >>"$OUTPUT_FILE"
 done
 
@@ -250,7 +162,6 @@ fi
 # --- Automated Secret Scanning ---
 echo "🔍 Scanning consolidated file for secrets..."
 if command -v trufflehog &>/dev/null; then
-  # We use the --fail flag so it exits with an error code if secrets are found
   if trufflehog filesystem "$OUTPUT_FILE" --fail; then
     echo "✅ Clean: No secrets detected in $OUTPUT_FILE."
   else
