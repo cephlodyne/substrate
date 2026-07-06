@@ -34,6 +34,8 @@ done
 if [ -z "$OUTPUT_FILE" ]; then
   OUTPUT_FILE="files-consolidated.xml"
 fi
+# Dynamically ignore the output file so we don't 'cat' it into itself
+EXCLUDE_FILES+=("$(basename "$OUTPUT_FILE")")
 
 if [ ${#TARGET_DIRS[@]} -gt 0 ]; then
   SEARCH_BASE=("${TARGET_DIRS[@]}")
