@@ -230,6 +230,8 @@ fetch_and_verify() {
 # ------------------------------------------------------------------------------
 
 if needs_update "Colima" "$COLIMA_VERSION"; then
+  echo "🛑 Stopping active Colima instances for safe update..."
+  command -v colima &>/dev/null && colima stop 2>/dev/null || true
   fetch_and_verify "Colima" "$COLIMA_URL" "$COLIMA_FILE" "colima" "$COLIMA_SHA"
   cp "$CACHE_DIR/colima" "$BIN_DIR/colima" && chmod +x "$BIN_DIR/colima"
   xattr -r -d com.apple.quarantine "$BIN_DIR/colima" 2>/dev/null || true
@@ -239,6 +241,9 @@ if needs_update "Colima" "$COLIMA_VERSION"; then
 fi
 
 if needs_update "Lima" "$LIMA_VERSION"; then
+  echo "🛑 Stopping underlying Lima VMs for safe update..."
+  command -v colima &>/dev/null && colima stop 2>/dev/null || true
+  command -v limactl &>/dev/null && limactl stop --force colima 2>/dev/null || true
   fetch_and_verify "Lima" "$LIMA_URL" "$LIMA_FILE" "lima.tar.gz" "$LIMA_SHA"
   tar -xzf "$CACHE_DIR/lima.tar.gz" -C "$LOCAL_DIR" bin/lima bin/limactl share/lima
   xattr -r -d com.apple.quarantine "$BIN_DIR/lima" "$BIN_DIR/limactl" 2>/dev/null || true
