@@ -82,6 +82,11 @@ fi
 echo "📦 Compiling $FILE_COUNT text file(s) into LLM context format..."
 
 # --- Write LLM Optimized Output ---
+# Ensure the destination directory exists before writing
+mkdir -p "$(dirname "$OUTPUT_FILE")" || {
+  echo "❌ FATAL: Could not create directory for $OUTPUT_FILE"
+  exit 1
+}
 >"$OUTPUT_FILE"
 
 cat <<'EOF' >>"$OUTPUT_FILE"
