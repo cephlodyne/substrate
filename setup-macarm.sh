@@ -65,10 +65,10 @@ JB_MONO_SHA="76f05ff3ace48a464a6ca57977998784ff7bdbb65a6d915d7e401cd3927c493c"
 
 # Go
 # sha: https://go.dev/dl/
-GO_VERSION="1.26.4"
+GO_VERSION="1.26.5"
 GO_FILE="go${GO_VERSION}.darwin-arm64.tar.gz"
 GO_URL="https://go.dev/dl/${GO_FILE}"
-GO_SHA="b62ad2b6d7d2464f12a5bcad7ff47f19d08325773b5efd21610e445a05a9bf53"
+GO_SHA="efb87ff28af9a188d0536ef5d42e63dd52ba8263cd7344a993cc48dd11dedb6a"
 
 # Node.js
 NODE_VERSION="v24.18.0"
