@@ -1,0 +1,29 @@
+-include .env
+export
+
+CONTRACTS_DIR ?= ../contracts
+
+.PHONY: generate build-frontend run dev
+
+generate:
+	@echo "Generating code from central contracts..."
+	buf generate $${CONTRACTS_DIR}/proto --template buf.gen.yaml
+
+build-frontend: generate
+	@echo "Installing and building frontend locally..."
+	cd frontend && pnpm install && pnpm build
+
+run: build-frontend
+	@echo "Tidying and vendoring Go dependencies..."
+	go mod tidy
+	go mod vendor
+	@echo "Starting production-like embedded server on port $${API_PORT}..."
+	go run ./cmd/server/main.go
+
+dev: generate
+	@echo "Tidying and vendoring Go dependencies..."
+	go mod tidy
+	go mod vendor
+	@echo "Starting rapid local development environment..."
+	@echo "Go API running on http://localhost:$${API_PORT}"
+	@bash -c "trap 'kill %1' SIGINT; go run -mod=vendor ./cmd/server/main.go & cd frontend && pnpm dev"

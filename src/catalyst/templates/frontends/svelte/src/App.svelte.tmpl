@@ -1,0 +1,43 @@
+<script lang="ts">
+  import { onMount } from "svelte";
+  import { createPromiseClient } from "@connectrpc/connect";
+  import { createConnectTransport } from "@connectrpc/connect-web";
+  import { PingService } from "./gen/ping/v1/ping_pb";
+
+  const transport = createConnectTransport({ baseUrl: "" });
+  const client = createPromiseClient(PingService, transport);
+
+  let statusMessage = "Pinging Go backend...";
+
+  onMount(async () => {
+    try {
+      const response = await client.ping({ name: "Strata Crowd" });
+      statusMessage = response.message;
+    } catch (error) {
+      statusMessage = "API unreachable. Check terminal logs.";
+      console.error(error);
+    }
+  });
+</script>
+
+<main>
+  <h1>CEPHLODYNE_APP_NAME</h1>
+  <div class="card">
+    <h2>Backend Status:</h2>
+    <p><strong>{statusMessage}</strong></p>
+  </div>
+</main>
+
+<style>
+  main {
+    font-family: system-ui, sans-serif;
+    text-align: center;
+    padding: 2rem;
+  }
+  .card {
+    background: #f4f4f5;
+    padding: 1rem;
+    border-radius: 8px;
+    display: inline-block;
+  }
+</style>

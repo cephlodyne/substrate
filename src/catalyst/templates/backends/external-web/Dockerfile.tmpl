@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1.4
+ARG NODE_IMAGE=base-repo-node-builder:latest
+ARG GO_IMAGE=base-repo-go-builder:latest
+
+FROM ${NODE_IMAGE} AS frontend-builder
+WORKDIR /app/frontend
+RUN cp /deps/node-deps/svelte5-only/package.json ./package.json
+COPY ./frontend/ ./
+RUN pnpm install && pnpm build
+
+FROM ${GO_IMAGE} AS server-builder
+WORKDIR /go-server
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+COPY vendor/ ./vendor/
+COPY go.mod .
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags="-w -s" -o ./server ./cmd/server/main.go
+
+FROM scratch AS final
+WORKDIR /app
+COPY --from=server-builder /etc/passwd /etc/passwd
+COPY --from=server-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=server-builder /go-server/server ./server
+USER appuser
+CMD ["./server"]

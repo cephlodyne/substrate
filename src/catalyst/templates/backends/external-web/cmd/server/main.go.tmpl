@@ -1,0 +1,47 @@
+package main
+
+import (
+	"embed"
+	"io/fs"
+	"net/http"
+
+	"github.com/cephlodyne/kit/ev"
+	"github.com/cephlodyne/kit/jot"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+
+	"CEPHLODYNE_APP_NAME/internal/ping"
+	pingv1connect "CEPHLODYNE_APP_NAME/internal/gen/ping/v1/pingv1connect"
+)
+
+//go:embed frontend/dist/*
+var embeddedFrontend embed.FS
+
+func main() {
+	port, err := ev.Get("API_PORT")
+	if err != nil {
+		port = "8080"
+	}
+
+	mux := http.NewServeMux()
+
+	pingPath, pingHandler := pingv1connect.NewPingServiceHandler(&ping.Server{})
+	mux.Handle(pingPath, pingHandler)
+
+	frontendFS, err := fs.Sub(embeddedFrontend, "frontend/dist")
+	if err != nil {
+		jot.Fatal("failed to load embedded frontend filesystem", err)
+	}
+	mux.Handle("/", http.FileServer(http.FS(frontendFS)))
+
+	h2s := &http2.Server{}
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: h2c.NewHandler(mux, h2s),
+	}
+
+	jot.Info("Starting CEPHLODYNE_APP_NAME server", "port", port)
+	if err := server.ListenAndServe(); err != nil {
+		jot.Fatal("Server crashed", err)
+	}
+}

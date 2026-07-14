@@ -109,6 +109,7 @@ BINARIES_TO_REMOVE=(
   "go" "node" "npm" "npx" "pnpm" "pnpx" "nvim" "rg" "fd"
   "lazygit" "tree-sitter" "tofu" "tofu-ls" "terraform" "terraform-ls"
   "gopls" "goimports" "trufflehog" "govulnfix" "protoc"
+  "buf" "protoc-gen-go" "protoc-gen-connect-go" "protoc-gen-es" "ceph"
 )
 
 # Dynamically find and remove any symlinks we created from the scripts directory

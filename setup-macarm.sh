@@ -141,12 +141,18 @@ TOFULS_FILE="tofu-ls_Darwin_arm64.tar.gz"
 TOFULS_URL="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERSION}/${TOFULS_FILE}"
 TOFULS_SHA="sha256:935852b3a3264d3a9ae6192c309beefe2de58b4fe2d4cceb19c110f6b82b9f60"
 
-# --- Global Packages (Pinned for Zero-Trust Updates) ---
+# Global Packages (Pinned for Zero-Trust Updates) ---
 
 GOPLS_VERSION="v0.22.0"
 GOIMPORTS_VERSION="v0.47.0"
 PNPM_VERSION="11.10.0"
 BIOME_VERSION="2.5.2"
+
+# Code Generation Plugins
+BUF_VERSION="v1.48.0"
+PROTOC_GEN_GO_VERSION="v1.36.11"
+PROTOC_GEN_CONNECT_GO_VERSION="v1.18.1"
+PROTOC_GEN_ES_VERSION="2.2.3"
 
 # ==============================================================================
 # Paths & Ledger Setup
@@ -407,6 +413,20 @@ if needs_update "Goimports" "$GOIMPORTS_VERSION"; then
   mark_updated "Goimports" "$GOIMPORTS_VERSION"
 fi
 
+if needs_update "Buf" "$BUF_VERSION"; then
+  echo "📦 Compiling Buf CLI securely (CGO disabled, strictly proxied)..."
+  env CGO_ENABLED=0 GOBIN="$BIN_DIR" GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org "$LOCAL_DIR/go/bin/go" install "github.com/bufbuild/buf/cmd/buf@${BUF_VERSION}"
+  mark_updated "Buf" "$BUF_VERSION"
+fi
+
+if needs_update "Node_Generators" "$PROTOC_GEN_ES_VERSION"; then
+  echo "📦 Installing Node Protobuf plugins securely via verified NPM binary..."
+  # Install ONLY protoc-gen-es
+  "$BIN_DIR/npm" install -g "@bufbuild/protoc-gen-es@${PROTOC_GEN_ES_VERSION}"
+  ln -sf "$LOCAL_DIR/node/bin/protoc-gen-es" "$BIN_DIR/protoc-gen-es"
+  mark_updated "Node_Generators" "$PROTOC_GEN_ES_VERSION"
+fi
+
 echo "🧹 Cleaning up raw downloaded archives..."
 rm -rf "$CACHE_DIR"/*
 
@@ -436,8 +456,13 @@ if [ -d "$SCRIPT_DIR/src" ]; then
 
       # Auto-detect Go modules and compile securely using our local Go binary
       if [ -f "go.mod" ]; then
-        env CGO_ENABLED=0 "$LOCAL_DIR/go/bin/go" build -o "$BIN_DIR/$tool_name" .
-        echo "   ✅ Installed: $tool_name"
+        if [ "$tool_name" == "catalyst" ]; then
+          env CGO_ENABLED=0 "$LOCAL_DIR/go/bin/go" build -o "$BIN_DIR/ceph" .
+          echo "   ✅ Installed: catalyst (as 'ceph')"
+        else
+          env CGO_ENABLED=0 "$LOCAL_DIR/go/bin/go" build -o "$BIN_DIR/$tool_name" .
+          echo "   ✅ Installed: $tool_name"
+        fi
       else
         echo "   ⏭️  Skipped: $tool_name (No go.mod found)"
       fi

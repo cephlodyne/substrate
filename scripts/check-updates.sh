@@ -404,6 +404,10 @@ check_github "TruffleHog" "trufflesecurity/trufflehog"
 check_npm_packages
 check_go_pkg "Gopls" "golang.org/x/tools/gopls"
 check_go_pkg "Goimports" "golang.org/x/tools"
+check_go_pkg "Gopls" "golang.org/x/tools/gopls"
+check_go_pkg "Goimports" "golang.org/x/tools"
+check_go_pkg "Buf" "github.com/bufbuild/buf"
+check_go_pkg "Go_Generators" "google.golang.org/protobuf"
 
 echo "----------------------------------------------------"
 echo "🏁 Update check complete."
