@@ -18,6 +18,8 @@ import (
 var embeddedFrontend embed.FS
 
 func main() {
+  // Initialize structured JSON logging for GCP
+	jot.AutoSetup()
 	port, err := ev.Get("API_PORT")
 	if err != nil {
 		port = "8080"
