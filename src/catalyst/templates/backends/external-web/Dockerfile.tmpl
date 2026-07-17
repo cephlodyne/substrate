@@ -4,7 +4,11 @@ ARG GO_IMAGE=base-repo-go-builder:latest
 
 FROM ${NODE_IMAGE} AS frontend-builder
 WORKDIR /app/frontend
-RUN cp /deps/node-deps/svelte5-only/package.json ./package.json
+
+# 🛡️ Supply Chain Enforcer: Overwrite local dependency requests with the centrally vetted manifest and lockfile
+RUN cp /deps/node-deps/svelte5-only/package.json ./package.json && \
+    cp /deps/pnpm-lock.yaml ./pnpm-lock.yaml
+
 COPY ./frontend/ ./
 
 # 🛡️ Frontend Security Gate: Fail build on production NPM vulnerabilities
