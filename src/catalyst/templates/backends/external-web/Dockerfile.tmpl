@@ -6,7 +6,9 @@ FROM ${NODE_IMAGE} AS frontend-builder
 WORKDIR /app/frontend
 RUN cp /deps/node-deps/svelte5-only/package.json ./package.json
 COPY ./frontend/ ./
-RUN pnpm install && pnpm build
+
+# 🛡️ Frontend Security Gate: Fail build on production NPM vulnerabilities
+RUN pnpm install && pnpm audit --prod && pnpm build
 
 FROM ${GO_IMAGE} AS server-builder
 WORKDIR /go-server
@@ -16,6 +18,11 @@ COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 COPY vendor/ ./vendor/
 COPY go.mod .
+
+# 🛡️ Backend Security Gate: Fail build on Go vulnerabilities
+RUN go install golang.org/x/vuln/cmd/govulncheck@latest && \
+    govulncheck ./...
+
 RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags="-w -s" -o ./server ./cmd/server/main.go
 
 FROM scratch AS final

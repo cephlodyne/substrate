@@ -1,0 +1,5208 @@
+<repository_context>
+  <system_instructions>
+    You are an expert software engineer and architect. Review the 'directory_structure' to understand the project architecture, then review the code in the 'files' section. 
+    
+    CRITICAL RULES:
+    1. NEVER output an entire file unless explicitly asked to do so.
+    2. When suggesting changes, ONLY output the specific blocks or lines that need modification.
+    3. Clearly state which file you are modifying and provide surrounding context (a few lines above and below).
+    4. Think step-by-step: Briefly explain your reasoning BEFORE writing code.
+    5. Be direct, concise, and professional.
+  </system_instructions>
+
+  <directory_structure>
+- ./
+  - .gitignore
+  - chrome-settings.sh
+  - files-consolidated.xml
+  - README.md
+  - scripts/
+    - check-updates.sh
+    - consolidate.sh
+    - hog-setup.sh
+    - hog-uninstall.sh
+  - setup-macarm.sh
+  - src/
+    - catalyst/
+      - go.mod
+      - main.go
+      - templates/
+        - backends/
+          - external-web/
+            - .dockerignore.tmpl
+            - .env.example.tmpl
+            - .env.tmpl
+            - .gitignore.tmpl
+            - buf.gen.yaml.tmpl
+            - cmd/
+              - server/
+                - main.go.tmpl
+            - Dockerfile.tmpl
+            - go.mod.tmpl
+            - internal/
+              - ping/
+                - ping.go.tmpl
+            - Makefile.tmpl
+        - contracts/
+          - proto/
+            - buf.yaml.tmpl
+            - ping/
+              - v1/
+                - ping.proto.tmpl
+        - frontends/
+          - svelte/
+            - embed.go.tmpl
+            - index.html.tmpl
+            - package.json.tmpl
+            - pnpm-workspace.yaml.tmpl
+            - src/
+              - App.svelte.tmpl
+              - main.ts.tmpl
+              - vite-env.d.ts.tmpl
+            - svelte.config.js.tmpl
+            - tsconfig.json.tmpl
+            - vite.config.ts.tmpl
+    - govulnfix/
+      - go.mod
+      - main.go
+  - uninstall-arm.sh
+  </directory_structure>
+
+  <files>
+    <file path="chrome-settings.sh">
+      <![CDATA[
+# I had tried to manage a browser with this setup using
+# something like brave or ungoogled chromium, but I don't think the security
+# is there (e.g. i was trying brave but the policy settings wouldn't work on a mac)
+# for now the solution is on macs to use safari as the default browser and use
+# chrome when needed for ui testing.
+#
+# the following settings turn off all tracking, calling home & ai features from chrome
+#
+# these setting can be reverted by the following command:
+# defaults delete com.google.Chrome && killall cfprefsd
+
+#!/bin/bash
+set -euo pipefail
+
+echo "🛡️  Initiating Google Chrome Lockdown (Zero-Trust Configuration)..."
+
+# Ensure Chrome is completely closed before modifying preferences
+echo "🛑 Closing Google Chrome..."
+killall "Google Chrome" 2>/dev/null || true
+
+# 1. Kill Telemetry & Data Collection
+echo "🚫 Disabling Telemetry & Analytics..."
+defaults write com.google.Chrome MetricsReportingEnabled -bool false
+defaults write com.google.Chrome SafeBrowsingExtendedReportingEnabled -bool false
+defaults write com.google.Chrome UserFeedbackAllowed -bool false
+
+# 2. Kill Cloud-based "Smart" Features
+echo "🚫 Disabling Cloud-based Typing & Search Suggestions..."
+defaults write com.google.Chrome SearchSuggestEnabled -bool false
+defaults write com.google.Chrome SpellCheckServiceEnabled -bool false
+
+# 3. Kill the Ad-Tracking "Privacy Sandbox"
+echo "🚫 Disabling Google Privacy Sandbox..."
+defaults write com.google.Chrome PrivacySandboxAdTopicsEnabled -bool false
+defaults write com.google.Chrome PrivacySandboxSiteEnabledAdsEnabled -bool false
+defaults write com.google.Chrome PrivacySandboxAdMeasurementEnabled -bool false
+
+# 4. Disable internal Credential Managers
+echo "🚫 Disabling Native Credential Managers..."
+defaults write com.google.Chrome PasswordManagerEnabled -bool false
+defaults write com.google.Chrome AutofillAddressEnabled -bool false
+defaults write com.google.Chrome AutofillCreditCardEnabled -bool false
+
+# 5. Disable background processing & Google Sync
+echo "🚫 Disabling Background Persistence & Cloud Sync..."
+defaults write com.google.Chrome EnableMediaRouter -bool false
+defaults write com.google.Chrome BackgroundModeEnabled -bool false
+defaults write com.google.Chrome SyncDisabled -bool true
+
+# 6. Local AI & LLM Killswitch
+echo "🤖 Eradicating Local AI & Gemini Nano..."
+defaults write com.google.Chrome GenAILocalFoundationalModelSettings -int 1
+defaults write com.google.Chrome AIModeSettings -int 1
+defaults write com.google.Chrome DevToolsGenAiSettings -int 2
+defaults write com.google.Chrome CreateThemesSettings -int 2
+
+# Flush the macOS preferences cache to apply immediately
+echo "🧹 Flushing macOS preference cache..."
+killall cfprefsd
+
+echo "✅ Chrome lockdown complete!"
+echo "👉 Open Chrome and visit 'chrome://policy' to verify."
+
+
+      ]]>
+    </file>
+    <file path="README.md">
+      <![CDATA[
+# substrate
+all the tools for developer setup
+
+      ]]>
+    </file>
+    <file path=".gitignore">
+      <![CDATA[
+/.DS_Store
+/files-consolidated.xml
+
+      ]]>
+    </file>
+    <file path="setup-macarm.sh">
+      <![CDATA[
+#!/bin/bash
+set -euo pipefail
+# ==============================================================================
+# ZERO-TRUST IDE BOOTSTRAP SCRIPT (macOS / Apple Silicon ARM64)
+# SMART UPDATE MODE: Only installs/updates tools if version variables change.
+# CONFIGURATION MODE: Enforces script defaults on every run (Overwrites local tweaks)
+# ==============================================================================
+
+# 🔒 Enforce strict permissions (Only owner can read/write/execute)
+umask 077
+
+echo "🛠️ Bootstrapping & Syncing macOS Zero-Trust Environment..."
+
+# 🔥 Ensure Xcode CLI Tools (which includes Python 3 for gcloud) are installed FIRST
+if ! xcode-select -p &>/dev/null; then
+  echo "❌ Xcode Command Line Tools missing. This provides Python for gcloud and Git!"
+  echo "👉 A popup should appear. Click 'Install', wait for it to finish, and run this script again."
+  xcode-select --install
+  exit 1
+fi
+
+# ==============================================================================
+# 1. TOOL VERSIONS, URLS & SHAS (macOS ARM64)
+# ==============================================================================
+
+# --- Infrastructure & Virtualization ---
+
+# Colima
+# sha: https://github.com/abiosoft/colima/releases
+COLIMA_VERSION="v0.10.3"
+COLIMA_FILE="colima-Darwin-arm64"
+COLIMA_URL="https://github.com/abiosoft/colima/releases/download/${COLIMA_VERSION}/${COLIMA_FILE}"
+COLIMA_SHA="sha256:980ad8bf61a4ca370243f4cb41401a61276dcd2c2502bee7b9b86f9250169f34"
+
+# Lima
+# sha: https://github.com/lima-vm/lima/releases
+LIMA_VERSION="v2.1.4"
+LIMA_FILE="lima-${LIMA_VERSION#v}-Darwin-arm64.tar.gz"
+LIMA_URL="https://github.com/lima-vm/lima/releases/download/${LIMA_VERSION}/${LIMA_FILE}"
+LIMA_SHA="sha256:14c5b283f1c5eb4078e5a300b8d241f69197a3e41326dfc685a69c9455917acf"
+
+# Google Cloud SDK
+# look at the windows releases to see the version number
+# sha: https://cloud.google.com/sdk/docs/downloads-versioned-archives
+GCLOUD_VERSION="575.0"
+GCLOUD_FILE="google-cloud-cli-darwin-arm.tar.gz"
+GCLOUD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_FILE}"
+GCLOUD_SHA="b4edcca2e5312748ecf6235197970ed0944a2a1318d8aa268a3e3314e7d302b3"
+
+# Alacritty
+# sha: https://github.com/alacritty/alacritty/releases
+ALACRITTY_VERSION="v0.17.0"
+ALACRITTY_FILE="Alacritty-${ALACRITTY_VERSION}.dmg"
+ALACRITTY_URL="https://github.com/alacritty/alacritty/releases/download/${ALACRITTY_VERSION}/${ALACRITTY_FILE}"
+ALACRITTY_SHA="sha256:ad8d7de35fb38e43184776cac6dfee05ca325caa0b6639a06a55e54e4b026620"
+
+# JetBrains Mono Nerd Font
+# sha: https://github.com/ryanoasis/nerd-fonts/releases
+JB_MONO_VERSION="v3.4.0"
+JB_MONO_FILE="JetBrainsMono.zip"
+JB_MONO_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${JB_MONO_VERSION}/${JB_MONO_FILE}"
+JB_MONO_SHA="76f05ff3ace48a464a6ca57977998784ff7bdbb65a6d915d7e401cd3927c493c"
+
+# --- Languages & Base Tools ---
+
+# Go
+# sha: https://go.dev/dl/
+GO_VERSION="1.26.5"
+GO_FILE="go${GO_VERSION}.darwin-arm64.tar.gz"
+GO_URL="https://go.dev/dl/${GO_FILE}"
+GO_SHA="efb87ff28af9a188d0536ef5d42e63dd52ba8263cd7344a993cc48dd11dedb6a"
+
+# Node.js
+NODE_VERSION="v24.18.0"
+NODE_FILE="node-${NODE_VERSION}-darwin-arm64.tar.xz"
+NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_FILE}"
+NODE_SHA_SOURCE="https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt"
+
+# Neovim
+# sha: https://github.com/neovim/neovim/releases
+NVIM_VERSION="v0.12.3"
+NVIM_FILE="nvim-macos-arm64.tar.gz"
+NVIM_URL="https://github.com/neovim/neovim/releases/download/$NVIM_VERSION/${NVIM_FILE}"
+NVIM_SHA="sha256:532da1d00e465a660fa01c3d4991333d09c52107dce7df937368545daca0a14e"
+
+# --- CLI Utilities ---
+
+# Ripgrep
+# sha: https://github.com/BurntSushi/ripgrep/releases
+RG_VERSION="15.1.0"
+RG_FILE="ripgrep-$RG_VERSION-aarch64-apple-darwin.tar.gz"
+RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/$RG_VERSION/${RG_FILE}"
+RG_SHA="sha256:378e973289176ca0c6054054ee7f631a065874a352bf43f0fa60ef079b6ba715"
+
+# fd
+# sha: https://github.com/sharkdp/fd/releases
+FD_VERSION="v10.4.2"
+FD_FILE="fd-$FD_VERSION-aarch64-apple-darwin.tar.gz"
+FD_URL="https://github.com/sharkdp/fd/releases/download/$FD_VERSION/${FD_FILE}"
+FD_SHA="sha256:623dc0afc81b92e4d4606b380d7bc91916ba7b97814263e554d50923a39e480a"
+
+# Protoc (Protocol Buffers Compiler)
+# sha: https://github.com/protocolbuffers/protobuf/releases
+PROTOC_VERSION="35.1"
+PROTOC_FILE="protoc-${PROTOC_VERSION}-osx-aarch_64.zip"
+PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_FILE}"
+PROTOC_SHA="sha256:193289af0470c6a1aada357d4fba0bbf8d78bfaac8b5e42ca30af2ef75583de2"
+
+# Tree-sitter
+# sha: https://github.com/tree-sitter/tree-sitter/releases
+TS_VERSION="v0.26.10"
+TS_FILE="tree-sitter-macos-arm64.gz"
+TS_URL="https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/${TS_FILE}"
+TS_SHA="sha256:821a387182db59a1942a90a1fbd8f9756d9926e2c265f5c7b9a23c523114134a"
+
+# TruffleHog
+# sha: https://github.com/trufflesecurity/trufflehog/releases
+TRUFFLEHOG_VERSION="3.95.8"
+TRUFFLEHOG_FILE="trufflehog_${TRUFFLEHOG_VERSION}_darwin_arm64.tar.gz"
+TRUFFLEHOG_URL="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/${TRUFFLEHOG_FILE}"
+TRUFFLEHOG_SHA="sha256:d6ed1f34499b97aae275e400a207c6f5d5c25b0626ddc464b82c104a719cd33b"
+
+# Lazygit
+# sha: https://github.com/jesseduffield/lazygit/releases
+LAZYGIT_VERSION="v0.63.0"
+LAZYGIT_FILE="lazygit_${LAZYGIT_VERSION#v}_darwin_arm64.tar.gz"
+LAZYGIT_URL="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/${LAZYGIT_FILE}"
+LAZYGIT_SHA="sha256:60e6bf29a1501a57a9d078538aa576a1b4db45779db2e3dd6931a7207f560a9c"
+
+# Tofu
+# sha: https://github.com/opentofu/opentofu/releases
+TOFU_VERSION="1.12.3"
+TOFU_FILE="tofu_${TOFU_VERSION}_darwin_arm64.zip"
+TOFU_URL="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/${TOFU_FILE}"
+TOFU_SHA="sha256:2b81c065cdcf5e573cfb5d9e0c663ac4cfc32512927078b645b58ef81cec2474"
+
+# Open Tofu LS
+# sha: https://github.com/opentofu/tofu-ls/releases
+TOFULS_VERSION="0.5.2"
+TOFULS_FILE="tofu-ls_Darwin_arm64.tar.gz"
+TOFULS_URL="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERSION}/${TOFULS_FILE}"
+TOFULS_SHA="sha256:935852b3a3264d3a9ae6192c309beefe2de58b4fe2d4cceb19c110f6b82b9f60"
+
+# Global Packages (Pinned for Zero-Trust Updates) ---
+
+GOPLS_VERSION="v0.22.0"
+GOIMPORTS_VERSION="v0.47.0"
+PNPM_VERSION="11.10.0"
+BIOME_VERSION="2.5.2"
+
+# Code Generation Plugins
+BUF_VERSION="v1.48.0"
+PROTOC_GEN_GO_VERSION="v1.36.11"
+PROTOC_GEN_CONNECT_GO_VERSION="v1.18.1"
+PROTOC_GEN_ES_VERSION="2.2.3"
+
+# ==============================================================================
+# Paths & Ledger Setup
+# ==============================================================================
+CACHE_DIR="$HOME/.cache/ide-bootstrap"
+LOCAL_DIR="$HOME/.local"
+BIN_DIR="$LOCAL_DIR/bin"
+NVIM_APP_DIR="$LOCAL_DIR/nvim-app"
+GCLOUD_DIR="$LOCAL_DIR/google-cloud-sdk"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RECEIPTS_FILE="$LOCAL_DIR/.ide_receipts"
+
+mkdir -p "$BIN_DIR" "$CACHE_DIR" "$NVIM_APP_DIR"
+touch "$RECEIPTS_FILE"
+export PATH="$BIN_DIR:$LOCAL_DIR/node/bin:$PATH"
+
+# ------------------------------------------------------------------------------
+# 2. STATE TRACKING & VERIFICATION LOGIC
+# ------------------------------------------------------------------------------
+needs_update() {
+  local tool="$1"
+  local target_version="$2"
+  local current_version=""
+
+  if grep -q "^${tool}=" "$RECEIPTS_FILE" 2>/dev/null; then
+    current_version=$(grep "^${tool}=" "$RECEIPTS_FILE" | cut -d'=' -f2)
+  fi
+
+  if [ "$current_version" == "$target_version" ]; then
+    echo "✅ $tool is up-to-date ($target_version). Skipping."
+    return 1 # False: Does not need update
+  else
+    echo "🔄 Updating $tool to $target_version..."
+    return 0 # True: Needs update
+  fi
+}
+
+mark_updated() {
+  local tool="$1"
+  local version="$2"
+  grep -v "^${tool}=" "$RECEIPTS_FILE" >"${RECEIPTS_FILE}.tmp" 2>/dev/null || true
+  echo "${tool}=${version}" >>"${RECEIPTS_FILE}.tmp"
+  mv "${RECEIPTS_FILE}.tmp" "$RECEIPTS_FILE"
+}
+
+fetch_and_verify() {
+  local name=$1 bin_url=$2 orig_file=$3 local_file=$4 source=$5
+  local expected_sha=""
+  cd "$CACHE_DIR" || exit
+
+  if [[ "$source" == http* ]]; then
+    local temp_sum="${local_file}.sum"
+    # 🔒 Enforce HTTPS and TLS 1.2+
+    curl --proto '=https' --tlsv1.2 -fsSL -o "$temp_sum" "$source"
+    if grep -q "$orig_file" "$temp_sum" 2>/dev/null; then
+      expected_sha=$(grep "$orig_file" "$temp_sum" | awk '{print $1}' | head -n 1)
+    else
+      echo "❌ FATAL: The filename '$orig_file' was NOT found in the checksums file."
+      exit 1
+    fi
+  else
+    expected_sha="$source"
+  fi
+
+  # 🧹 Sanitize the expected SHA
+  expected_sha="${expected_sha#sha256:}"
+  expected_sha="${expected_sha#sha256-}"
+
+  echo "⬇️  Downloading $name..."
+  curl --proto '=https' --tlsv1.2 -fsSL -o "$local_file" "$bin_url"
+
+  echo "🔐 Verifying $name..."
+  if ! echo "$expected_sha  $local_file" | shasum -a 256 -c; then
+    echo "❌ FATAL: Checksum validation failed for $name!"
+    exit 1
+  fi
+}
+
+# ------------------------------------------------------------------------------
+# 3. SMART INSTALL / UPDATE BLOCKS
+# ------------------------------------------------------------------------------
+
+if needs_update "Colima" "$COLIMA_VERSION"; then
+  echo "🛑 Stopping active Colima instances for safe update..."
+  command -v colima &>/dev/null && colima stop 2>/dev/null || true
+  fetch_and_verify "Colima" "$COLIMA_URL" "$COLIMA_FILE" "colima" "$COLIMA_SHA"
+  cp "$CACHE_DIR/colima" "$BIN_DIR/colima" && chmod +x "$BIN_DIR/colima"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/colima" 2>/dev/null || true
+  echo "🖋️  Cryptographic check passed. Signing binary for Apple Silicon execution..."
+  codesign --force --deep --sign - "$BIN_DIR/colima"
+  mark_updated "Colima" "$COLIMA_VERSION"
+fi
+
+if needs_update "Lima" "$LIMA_VERSION"; then
+  echo "🛑 Stopping underlying Lima VMs for safe update..."
+  command -v colima &>/dev/null && colima stop 2>/dev/null || true
+  command -v limactl &>/dev/null && limactl stop --force colima 2>/dev/null || true
+  fetch_and_verify "Lima" "$LIMA_URL" "$LIMA_FILE" "lima.tar.gz" "$LIMA_SHA"
+  tar -xzf "$CACHE_DIR/lima.tar.gz" -C "$LOCAL_DIR" bin/lima bin/limactl share/lima
+  xattr -r -d com.apple.quarantine "$BIN_DIR/lima" "$BIN_DIR/limactl" 2>/dev/null || true
+  mark_updated "Lima" "$LIMA_VERSION"
+fi
+
+if needs_update "Gcloud" "$GCLOUD_VERSION"; then
+  fetch_and_verify "Google Cloud SDK" "$GCLOUD_URL" "$GCLOUD_FILE" "gcloud.tar.gz" "$GCLOUD_SHA"
+  rm -rf "$GCLOUD_DIR" && tar -xzf "$CACHE_DIR/gcloud.tar.gz" -C "$LOCAL_DIR"
+
+  echo "📦 Bootstrapping gcloud (Fetching isolated Python 3.10+)..."
+  # Run installer headlessly to fetch Google's bundled Python without modifying user dotfiles
+  env CLOUDSDK_CORE_DISABLE_PROMPTS=1 "$GCLOUD_DIR/install.sh" --quiet --path-update=false --command-completion=false
+
+  ln -sf "$GCLOUD_DIR/bin/gcloud" "$BIN_DIR/gcloud"
+  xattr -r -d com.apple.quarantine "$GCLOUD_DIR" 2>/dev/null || true
+
+  echo "🔒 Disabling gcloud internal updaters to prevent version drift..."
+  "$BIN_DIR/gcloud" config set component_manager/disable_update_check true --quiet || true
+  "$BIN_DIR/gcloud" config set core/disable_usage_reporting true --quiet || true
+
+  mark_updated "Gcloud" "$GCLOUD_VERSION"
+fi
+
+if needs_update "Alacritty" "$ALACRITTY_VERSION"; then
+  fetch_and_verify "Alacritty" "$ALACRITTY_URL" "$ALACRITTY_FILE" "alacritty.dmg" "$ALACRITTY_SHA"
+  hdiutil attach "$CACHE_DIR/alacritty.dmg" -mountpoint /Volumes/Alacritty -nobrowse -quiet
+  rm -rf /Applications/Alacritty.app 2>/dev/null || sudo rm -rf /Applications/Alacritty.app
+  cp -R /Volumes/Alacritty/Alacritty.app /Applications/
+  hdiutil detach /Volumes/Alacritty -quiet
+  xattr -r -d com.apple.quarantine /Applications/Alacritty.app 2>/dev/null || true
+  mark_updated "Alacritty" "$ALACRITTY_VERSION"
+fi
+
+if needs_update "JetBrainsMono" "$JB_MONO_VERSION"; then
+  fetch_and_verify "JetBrains Mono Nerd Font" "$JB_MONO_URL" "$JB_MONO_FILE" "JetBrainsMono.zip" "$JB_MONO_SHA"
+  mkdir -p "$CACHE_DIR/jb-mono"
+  unzip -q -o "$CACHE_DIR/JetBrainsMono.zip" -d "$CACHE_DIR/jb-mono"
+  cp "$CACHE_DIR/jb-mono/"*.ttf "$HOME/Library/Fonts/"
+  mark_updated "JetBrainsMono" "$JB_MONO_VERSION"
+fi
+
+if needs_update "Go" "$GO_VERSION"; then
+  fetch_and_verify "Go" "$GO_URL" "$GO_FILE" "go.tar.gz" "$GO_SHA"
+  rm -rf "$LOCAL_DIR/go" && tar -xzf "$CACHE_DIR/go.tar.gz" -C "$LOCAL_DIR"
+  ln -sf "$LOCAL_DIR/go/bin/go" "$BIN_DIR/go"
+  xattr -r -d com.apple.quarantine "$LOCAL_DIR/go" 2>/dev/null || true
+  echo "🔒 Locking Go environment (No auto-updates, strict proxy, strict checksums)..."
+  env GOPATH="$HOME/go" "$LOCAL_DIR/go/bin/go" env -w GOTOOLCHAIN=local GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org
+  mark_updated "Go" "$GO_VERSION"
+fi
+
+if needs_update "Node" "$NODE_VERSION"; then
+  fetch_and_verify "Node.js" "$NODE_URL" "$NODE_FILE" "node.tar.xz" "$NODE_SHA_SOURCE"
+  rm -rf "$LOCAL_DIR/node" && mkdir -p "$LOCAL_DIR/node"
+  tar -xf "$CACHE_DIR/node.tar.xz" -C "$LOCAL_DIR/node" --strip-components=1
+  ln -sf "$LOCAL_DIR/node/bin/node" "$BIN_DIR/node"
+  ln -sf "$LOCAL_DIR/node/bin/npm" "$BIN_DIR/npm"
+  ln -sf "$LOCAL_DIR/node/bin/npx" "$BIN_DIR/npx"
+  xattr -r -d com.apple.quarantine "$LOCAL_DIR/node" 2>/dev/null || true
+  echo "🔒 Disabling NPM lifecycle scripts to prevent malicious post-install execution..."
+  "$BIN_DIR/npm" config set ignore-scripts true --global
+  mark_updated "Node" "$NODE_VERSION"
+fi
+
+if needs_update "NPM_Packages" "${PNPM_VERSION}_${BIOME_VERSION}"; then
+  echo "📦 Installing Biome and pnpm securely via verified NPM binary..."
+  "$BIN_DIR/npm" install -g "pnpm@${PNPM_VERSION}" "@biomejs/biome@${BIOME_VERSION}"
+  ln -sf "$LOCAL_DIR/node/bin/pnpm" "$BIN_DIR/pnpm"
+  ln -sf "$LOCAL_DIR/node/bin/pnpx" "$BIN_DIR/pnpx"
+  mark_updated "NPM_Packages" "${PNPM_VERSION}_${BIOME_VERSION}"
+fi
+
+if needs_update "Neovim" "$NVIM_VERSION"; then
+  fetch_and_verify "Neovim" "$NVIM_URL" "$NVIM_FILE" "nvim.tar.gz" "$NVIM_SHA"
+  rm -rf "$NVIM_APP_DIR" && mkdir -p "$NVIM_APP_DIR"
+  tar -xzf "$CACHE_DIR/nvim.tar.gz" -C "$NVIM_APP_DIR" --strip-components=1
+  ln -sf "$NVIM_APP_DIR/bin/nvim" "$BIN_DIR/nvim"
+  xattr -r -d com.apple.quarantine "$NVIM_APP_DIR" 2>/dev/null || true
+  mark_updated "Neovim" "$NVIM_VERSION"
+fi
+
+if needs_update "Ripgrep" "$RG_VERSION"; then
+  fetch_and_verify "Ripgrep" "$RG_URL" "$RG_FILE" "rg.tar.gz" "$RG_SHA"
+  tar -xzf "$CACHE_DIR/rg.tar.gz" -C "$CACHE_DIR"
+  mv "$CACHE_DIR/ripgrep-$RG_VERSION-aarch64-apple-darwin/rg" "$BIN_DIR/rg"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/rg" 2>/dev/null || true
+  mark_updated "Ripgrep" "$RG_VERSION"
+fi
+
+if needs_update "fd" "$FD_VERSION"; then
+  fetch_and_verify "fd" "$FD_URL" "$FD_FILE" "fd.tar.gz" "$FD_SHA"
+  tar -xzf "$CACHE_DIR/fd.tar.gz" -C "$CACHE_DIR"
+  mv "$CACHE_DIR/fd-$FD_VERSION-aarch64-apple-darwin/fd" "$BIN_DIR/fd"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/fd" 2>/dev/null || true
+  mark_updated "fd" "$FD_VERSION"
+fi
+
+if needs_update "Protoc" "$PROTOC_VERSION"; then
+  fetch_and_verify "Protoc" "$PROTOC_URL" "$PROTOC_FILE" "protoc.zip" "$PROTOC_SHA"
+
+  mkdir -p "$CACHE_DIR/protoc"
+  unzip -q -o "$CACHE_DIR/protoc.zip" -d "$CACHE_DIR/protoc"
+
+  # 1. Install the binary
+  mv "$CACHE_DIR/protoc/bin/protoc" "$BIN_DIR/protoc"
+  chmod +x "$BIN_DIR/protoc"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/protoc" 2>/dev/null || true
+
+  # 2. Install the standard Protobuf includes (Required for descriptor.proto)
+  # protoc automatically looks in ../include relative to its binary location
+  mkdir -p "$LOCAL_DIR/include"
+  cp -R "$CACHE_DIR/protoc/include/" "$LOCAL_DIR/include/"
+
+  mark_updated "Protoc" "$PROTOC_VERSION"
+fi
+
+if needs_update "Lazygit" "$LAZYGIT_VERSION"; then
+  fetch_and_verify "Lazygit" "$LAZYGIT_URL" "$LAZYGIT_FILE" "lazygit.tar.gz" "$LAZYGIT_SHA"
+  tar -xzf "$CACHE_DIR/lazygit.tar.gz" -C "$CACHE_DIR"
+  mv "$CACHE_DIR/lazygit" "$BIN_DIR/lazygit"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/lazygit" 2>/dev/null || true
+  mark_updated "Lazygit" "$LAZYGIT_VERSION"
+fi
+
+if needs_update "Treesitter" "$TS_VERSION"; then
+  fetch_and_verify "Tree-sitter" "$TS_URL" "$TS_FILE" "tree-sitter.gz" "$TS_SHA"
+  gzip -d -c "$CACHE_DIR/tree-sitter.gz" >"$BIN_DIR/tree-sitter" && chmod +x "$BIN_DIR/tree-sitter"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/tree-sitter" 2>/dev/null || true
+  mark_updated "Treesitter" "$TS_VERSION"
+fi
+
+if needs_update "TruffleHog" "$TRUFFLEHOG_VERSION"; then
+  fetch_and_verify "TruffleHog" "$TRUFFLEHOG_URL" "$TRUFFLEHOG_FILE" "trufflehog.tar.gz" "$TRUFFLEHOG_SHA"
+  tar -xzf "$CACHE_DIR/trufflehog.tar.gz" -C "$CACHE_DIR"
+  mv "$CACHE_DIR/trufflehog" "$BIN_DIR/trufflehog"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/trufflehog" 2>/dev/null || true
+  mark_updated "TruffleHog" "$TRUFFLEHOG_VERSION"
+fi
+
+if needs_update "OpenTofu" "${TOFU_VERSION}_${TOFULS_VERSION}"; then
+  fetch_and_verify "OpenTofu" "$TOFU_URL" "$TOFU_FILE" "tofu.zip" "$TOFU_SHA"
+  fetch_and_verify "OpenTofu LS" "$TOFULS_URL" "$TOFULS_FILE" "tofu-ls.tar.gz" "$TOFULS_SHA"
+  unzip -q -o "$CACHE_DIR/tofu.zip" -d "$BIN_DIR"
+  tar -xzf "$CACHE_DIR/tofu-ls.tar.gz" -C "$BIN_DIR"
+  ln -sf "$BIN_DIR/tofu" "$BIN_DIR/terraform"
+  ln -sf "$BIN_DIR/tofu-ls" "$BIN_DIR/terraform-ls"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/tofu" "$BIN_DIR/tofu-ls" 2>/dev/null || true
+  mark_updated "OpenTofu" "${TOFU_VERSION}_${TOFULS_VERSION}"
+fi
+
+if needs_update "Gopls" "$GOPLS_VERSION"; then
+  echo "📦 Compiling gopls securely (CGO disabled, strictly proxied)..."
+  env CGO_ENABLED=0 GOBIN="$BIN_DIR" GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org "$LOCAL_DIR/go/bin/go" install "golang.org/x/tools/gopls@${GOPLS_VERSION}"
+  mark_updated "Gopls" "$GOPLS_VERSION"
+fi
+
+if needs_update "Goimports" "$GOIMPORTS_VERSION"; then
+  echo "📦 Compiling goimports securely (CGO disabled, strictly proxied)..."
+  env CGO_ENABLED=0 GOBIN="$BIN_DIR" GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org "$LOCAL_DIR/go/bin/go" install "golang.org/x/tools/cmd/goimports@${GOIMPORTS_VERSION}"
+  mark_updated "Goimports" "$GOIMPORTS_VERSION"
+fi
+
+if needs_update "Buf" "$BUF_VERSION"; then
+  echo "📦 Compiling Buf CLI securely (CGO disabled, strictly proxied)..."
+  env CGO_ENABLED=0 GOBIN="$BIN_DIR" GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org "$LOCAL_DIR/go/bin/go" install "github.com/bufbuild/buf/cmd/buf@${BUF_VERSION}"
+  mark_updated "Buf" "$BUF_VERSION"
+fi
+
+if needs_update "Node_Generators" "$PROTOC_GEN_ES_VERSION"; then
+  echo "📦 Installing Node Protobuf plugins securely via verified NPM binary..."
+  # Install ONLY protoc-gen-es
+  "$BIN_DIR/npm" install -g "@bufbuild/protoc-gen-es@${PROTOC_GEN_ES_VERSION}"
+  ln -sf "$LOCAL_DIR/node/bin/protoc-gen-es" "$BIN_DIR/protoc-gen-es"
+  mark_updated "Node_Generators" "$PROTOC_GEN_ES_VERSION"
+fi
+
+echo "🧹 Cleaning up raw downloaded archives..."
+rm -rf "$CACHE_DIR"/*
+
+# ------------------------------------------------------------------------------
+# 4. UTILITY SCRIPTS, COMPILATION & GIT HOOKS
+# ------------------------------------------------------------------------------
+
+echo "📜 Linking custom utility scripts to local bin..."
+if [ -d "$SCRIPT_DIR/scripts" ]; then
+  for script in "$SCRIPT_DIR/scripts"/*.sh; do
+    if [ -f "$script" ]; then
+      script_name=$(basename "$script" .sh)
+      chmod +x "$script"
+      ln -sf "$script" "$BIN_DIR/$script_name"
+      echo "   ✅ Linked: $script_name"
+    fi
+  done
+fi
+
+echo "📦 Compiling custom local tools from src/..."
+if [ -d "$SCRIPT_DIR/src" ]; then
+  for tool_dir in "$SCRIPT_DIR/src"/*/; do
+    if [ -d "$tool_dir" ]; then
+      tool_name=$(basename "$tool_dir")
+      echo "   ⚙️  Compiling $tool_name..."
+      cd "$tool_dir" || continue
+
+      # Auto-detect Go modules and compile securely using our local Go binary
+      if [ -f "go.mod" ]; then
+        if [ "$tool_name" == "catalyst" ]; then
+          env CGO_ENABLED=0 "$LOCAL_DIR/go/bin/go" build -o "$BIN_DIR/ceph" .
+          echo "   ✅ Installed: catalyst (as 'ceph')"
+        else
+          env CGO_ENABLED=0 "$LOCAL_DIR/go/bin/go" build -o "$BIN_DIR/$tool_name" .
+          echo "   ✅ Installed: $tool_name"
+        fi
+      else
+        echo "   ⏭️  Skipped: $tool_name (No go.mod found)"
+      fi
+      cd "$CACHE_DIR" || exit
+    fi
+  done
+fi
+
+echo "🛡️  Configuring TruffleHog global Git hooks..."
+if [ -f "$SCRIPT_DIR/scripts/hog-setup.sh" ]; then
+  bash "$SCRIPT_DIR/scripts/hog-setup.sh"
+fi
+
+# ------------------------------------------------------------------------------
+# 5. CONFIGURATIONS & ZSH INJECTIONS
+# ------------------------------------------------------------------------------
+
+echo "🐳 Generating Smart Zero-Download Docker Wrappers..."
+
+# Create a bridge for 'docker' that isolates VM context
+cat <<'EOF' >"$BIN_DIR/docker"
+#!/bin/bash
+printf -v ESCAPED_ARGS "%q " "$@"
+exec colima ssh -- bash -c "export DOCKER_CONTEXT=default DOCKER_HOST=unix:///var/run/docker.sock; docker $ESCAPED_ARGS"
+EOF
+chmod +x "$BIN_DIR/docker"
+
+# Create a bridge for 'docker-compose'
+cat <<'EOF' >"$BIN_DIR/docker-compose"
+#!/bin/bash
+printf -v ESCAPED_ARGS "%q " "$@"
+exec colima ssh -- bash -c "export DOCKER_CONTEXT=default DOCKER_HOST=unix:///var/run/docker.sock; docker compose $ESCAPED_ARGS"
+EOF
+chmod +x "$BIN_DIR/docker-compose"
+
+echo "⚠️  NOTE: Docker is running entirely inside a VM via SSH wrappers."
+echo "⚠️  NOTE: Docker is running entirely inside a VM via SSH wrappers."
+echo "   - Volume mounts (-v) will only work for paths within /Users."
+echo "   - To mount paths outside /Users, run: colima start --edit"
+
+echo "⚙️  Detecting system hardware for optimal Colima allocation..."
+# Get total RAM in GB and logical CPU cores
+SYS_RAM_GB=$(($(sysctl -n hw.memsize) / 1073741824))
+SYS_CPU_CORES=$(sysctl -n hw.ncpu)
+
+# Smart allocation:
+# - RAM: ~25-30% of total system RAM, minimum 2GB, max 8GB.
+# - CPU: Half of available cores, minimum 2, max 4.
+COLIMA_MEM=$((SYS_RAM_GB / 4))
+[ "$COLIMA_MEM" -lt 2 ] && COLIMA_MEM=2
+[ "$COLIMA_MEM" -gt 8 ] && COLIMA_MEM=8
+
+COLIMA_CPU=$((SYS_CPU_CORES / 2))
+[ "$COLIMA_CPU" -lt 2 ] && COLIMA_CPU=2
+[ "$COLIMA_CPU" -gt 4 ] && COLIMA_CPU=4
+
+echo "   👉 Host has ${SYS_RAM_GB}GB RAM and ${SYS_CPU_CORES} CPUs."
+echo "   👉 Allocating ${COLIMA_MEM}GB RAM and ${COLIMA_CPU} CPUs to Colima."
+
+mkdir -p "$HOME/.colima/default"
+cat <<EOF >"$HOME/.colima/default/colima.yaml"
+# Dynamic Hardware Limits
+cpu: ${COLIMA_CPU}
+disk: 60
+memory: ${COLIMA_MEM}
+
+# Apple Silicon Optimizations (Stops corruption, networking loops, and CPU spikes)
+vmType: vz
+rosetta: true
+mountType: virtiofs
+
+# Network Security
+network:
+  address: false # Disables reachable IP bridge; relies entirely on strict localhost port forwarding
+EOF
+
+echo "🔗 Checking shell PATH configuration..."
+ZSHRC="$HOME/.zshrc"
+touch "$ZSHRC"
+grep -q ".local/bin" "$ZSHRC" || echo 'export PATH="$HOME/.local/bin:$PATH"' >>"$ZSHRC"
+grep -q ".local/node/bin" "$ZSHRC" || echo 'export PATH="$HOME/.local/node/bin:$PATH"' >>"$ZSHRC"
+grep -q "go/bin" "$ZSHRC" || echo 'export PATH="$PATH:$HOME/go/bin"' >>"$ZSHRC"
+
+# prevent go from automatically installing new versions
+echo 'export GOTOOLCHAIN=local' >>~/.zshrc
+
+# Clone the LazyVim base repo ONLY if it doesn't exist
+if [ ! -d "$HOME/.config/nvim" ]; then
+  if ! xcode-select -p &>/dev/null; then
+    echo "❌ Xcode Command Line Tools missing. Run 'xcode-select --install' and try again."
+    exit 1
+  fi
+
+  echo "✨ Bootstrapping LazyVim base repo..."
+  git clone https://github.com/LazyVim/starter ~/.config/nvim
+  rm -rf ~/.config/nvim/.git
+
+  # Inject lazy-lock.json if it exists alongside the script
+  if [ -f "$SCRIPT_DIR/lazy-lock.json" ]; then
+    cp "$SCRIPT_DIR/lazy-lock.json" ~/.config/nvim/lazy-lock.json
+  fi
+fi
+
+# ==============================================================================
+# ENFORCED DEFAULTS: The following files are overwritten on EVERY run.
+# ==============================================================================
+echo "⚙️  Enforcing Alacritty & Neovim configuration defaults..."
+
+mkdir -p ~/.config/alacritty
+cat <<EOF >~/.config/alacritty/alacritty.toml
+[window]
+dimensions = { columns = 120, lines = 35 }
+padding = { x = 12, y = 12 }
+opacity = 0.95
+option_as_alt = "Both"
+dynamic_title = true
+[font]
+normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
+bold = { family = "JetBrainsMono Nerd Font", style = "Bold" }
+italic = { family = "JetBrainsMono Nerd Font", style = "Italic" }
+size = 18.0
+[keyboard]
+bindings = [{ key = "N", mods = "Command", action = "CreateNewWindow" }]
+[colors.primary]
+background = "#1a1b26"
+foreground = "#c0caf5"
+EOF
+
+mkdir -p ~/.config/nvim/lua/plugins ~/.config/nvim/lua/config
+
+cat <<'EOF' >~/.config/nvim/lua/config/lazy.lua
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not (vim.uv or vim.loop).fs_stat(lazypath) then
+  local lazyrepo = "https://github.com/folke/lazy.nvim.git"
+  vim.fn.system({ "git", "clone", "--filter=blob:none", "--branch=stable", lazyrepo, lazypath })
+end
+vim.opt.rtp:prepend(lazypath)
+require("lazy").setup({
+  spec = {
+    { "LazyVim/LazyVim", import = "lazyvim.plugins" },
+    { import = "lazyvim.plugins.extras.lang.go" },
+    { import = "lazyvim.plugins.extras.lang.markdown" },
+    { import = "lazyvim.plugins.extras.lang.svelte" },
+    { import = "plugins" },
+  },
+  defaults = { lazy = false, version = false },
+  install = { colorscheme = { "tokyonight" } },
+})
+EOF
+
+echo "⚙️  Configuring Neovim options..."
+cat <<'EOF' >~/.config/nvim/lua/config/options.lua
+-- Disable swap files completely to prevent E325 errors
+vim.opt.swapfile = false
+
+-- Broadcast the current file/project to the Alacritty window title
+vim.opt.title = true
+EOF
+
+cat <<'EOF' >~/.config/nvim/lua/plugins/treesitter.lua
+return {
+  "nvim-treesitter/nvim-treesitter",
+  opts = function(_, opts)
+    if type(opts.ensure_installed) == "table" then
+      vim.list_extend(opts.ensure_installed, { 
+        "css", "html", "javascript", "typescript", "json",
+        "go", "gomod", "gowork", "gosum", 
+        "terraform", "hcl",
+        "svelte"
+      })
+    end
+
+    -- FIX: Disable Tree-sitter highlighting for Terraform/HCL to prevent UI freezes
+    -- on complex Heredoc string interpolations. Falls back to standard regex highlighting.
+    opts.highlight = opts.highlight or {}
+    local prev_disable = opts.highlight.disable
+    opts.highlight.disable = function(lang, buf)
+      if lang == "terraform" or lang == "hcl" then
+        return true
+      end
+      if type(prev_disable) == "function" then
+        return prev_disable(lang, buf)
+      elseif type(prev_disable) == "table" then
+        for _, disabled_lang in ipairs(prev_disable) do
+          if lang == disabled_lang then return true end
+        end
+      end
+      return false
+    end
+  end,
+}
+EOF
+
+cat <<'EOF' >~/.config/nvim/lua/plugins/lsp.lua
+return {
+  "neovim/nvim-lspconfig",
+  opts = { 
+    servers = { 
+      biome = {}, 
+      gopls = {}, 
+      svelte = {},
+      terraformls = {
+        -- Force Neovim to use the tofu-ls binary symlinked in ~/.local/bin
+        cmd = { "terraform-ls", "serve" },
+        filetypes = { "terraform", "terraform-vars", "hcl" },
+      }
+    },
+    setup = {
+      terraformls = function()
+        -- Return true to completely bypass Mason for this LSP
+        return true
+      end,
+    }
+  }
+}
+EOF
+
+cat <<'EOF' >~/.config/nvim/lua/plugins/formatting.lua
+return {
+  "stevearc/conform.nvim",
+  opts = {
+    formatters_by_ft = {
+      go = { "goimports", "gofmt" },
+      terraform = { "terraform_fmt" },
+      tf = { "terraform_fmt" },
+      ["terraform-vars"] = { "terraform_fmt" },
+      javascript = { "biome" },
+      typescript = { "biome" },
+      javascriptreact = { "biome" },
+      typescriptreact = { "biome" },
+      css = { "biome" },
+      json = { "biome" },
+    },
+  },
+}
+EOF
+
+cat <<'EOF' >~/.config/nvim/lua/plugins/theme.lua
+return {
+  { "folke/tokyonight.nvim", lazy = false, priority = 1000, opts = { style = "night" } },
+  { "LazyVim/LazyVim", opts = { colorscheme = "tokyonight" } },
+}
+EOF
+
+echo "⚙️  Disabling smooth scrolling animations..."
+cat <<'EOF' >~/.config/nvim/lua/plugins/ui.lua
+return {
+  -- Disable mini.animate (used in older LazyVim versions)
+  { "nvim-mini/mini.animate", enabled = false },
+  
+  -- Disable Snacks smooth scroll (used in newer LazyVim versions)
+  {
+    "folke/snacks.nvim",
+    opts = {
+      scroll = { enabled = false },
+    }
+  }
+}
+EOF
+
+echo "⌨️  Injecting 'jk' escape shortcut into Neovim..."
+cat <<'EOF' >~/.config/nvim/lua/config/keymaps.lua
+-- Press jk fast to exit insert mode 
+vim.keymap.set("i", "jk", "<esc>", { desc = "Exit insert mode" })
+EOF
+
+echo "⚙️  Injecting safety overrides for Terraform files..."
+cat <<'EOF' >~/.config/nvim/lua/config/autocmds.lua
+-- Disable aggressive visual scanners for Terraform/HCL files to prevent lockups on complex Heredocs
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "terraform", "terraform-vars", "hcl" },
+  callback = function()
+    vim.b.miniindentscope_disable = true
+    vim.cmd("NoMatchParen")
+  end,
+})
+EOF
+
+# ------------------------------------------------------------------------------
+# 6. HEADLESS PLUGIN SYNC
+# ------------------------------------------------------------------------------
+echo "⚙️  Syncing Neovim Plugins and Parsers..."
+export PATH="$BIN_DIR:$HOME/.local/node/bin:$PATH"
+
+nvim --headless "+Lazy! sync" +qa
+TS_LUA="require('lazy').load({plugins={'nvim-treesitter'}}); require('nvim-treesitter.install').update({with_sync=true}); vim.cmd('qa')"
+nvim --headless -c "lua $TS_LUA"
+
+echo "=============================================================================="
+echo "🎉 Secure IDE environment is synced and ready!"
+echo "=============================================================================="
+
+      ]]>
+    </file>
+    <file path="scripts/hog-uninstall.sh">
+      <![CDATA[
+#!/bin/bash
+# Uninstaller for Global Git Hooks & TruffleHog Configuration
+
+set -euo pipefail
+
+HOOKS_DIR="$HOME/.git-hooks"
+
+echo "🗑️  Uninstalling global TruffleHog Git hooks and configurations..."
+echo "────────────────────────────────────────────────────────"
+
+echo "➡️  Restoring Git configuration..."
+if git config --global --get core.hooksPath >/dev/null 2>&1; then
+  git config --global --unset core.hooksPath
+  echo "   ✅ Global 'core.hooksPath' has been unset."
+else
+  echo "   ⚪ Global 'core.hooksPath' was not set. Skipping."
+fi
+
+echo "➡️  Removing hooks directory..."
+if [ -d "$HOOKS_DIR" ]; then
+  rm -rf "$HOOKS_DIR"
+  echo "   ✅ Directory '$HOOKS_DIR' has been deleted."
+else
+  echo "   ⚪ Directory '$HOOKS_DIR' not found. Skipping."
+fi
+
+echo "────────────────────────────────────────────────────────"
+echo "✅ Uninstallation complete. Git is now using default local hooks."
+
+      ]]>
+    </file>
+    <file path="scripts/check-updates.sh">
+      <![CDATA[
+#!/bin/bash
+set -euo pipefail
+
+RECEIPTS_FILE="$HOME/.local/.ide_receipts"
+
+echo "🔍 Reading local state from $RECEIPTS_FILE..."
+echo "----------------------------------------------------"
+
+if [ ! -f "$RECEIPTS_FILE" ]; then
+  echo "❌ No receipts file found at $RECEIPTS_FILE. Have you run the bootstrap script yet?"
+  exit 1
+fi
+
+# ==============================================================================
+# 1. HELPER FUNCTIONS
+# ==============================================================================
+
+# Wrapper for GitHub API calls with a 1-hour ephemeral local cache
+github_curl() {
+  local full_url="$1"
+
+  # Create a safe, unique filename from the URL for the cache
+  local cache_key
+  cache_key=$(echo "$full_url" | sed 's/[^a-zA-Z0-9]/_/g')
+  local cache_file="/tmp/substrate_cache_${cache_key}.json"
+
+  # If cache exists, check its age
+  if [ -f "$cache_file" ]; then
+    local current_time
+    current_time=$(date +%s)
+
+    local file_time
+    # macOS BSD stat command to get file modification time in seconds
+    file_time=$(stat -f "%m" "$cache_file" 2>/dev/null)
+
+    if [ -n "$file_time" ]; then
+      local age_seconds=$((current_time - file_time))
+      # If the cache is less than 60 minutes (3600 seconds) old, use it
+      if [ "$age_seconds" -lt 3600 ]; then
+        cat "$cache_file"
+        return
+      fi
+    fi
+  fi
+
+  # Cache is missing or stale. Fetch fresh data from GitHub.
+  local response
+  response=$(curl --proto '=https' --tlsv1.2 -sSL "$full_url" || true)
+
+  # Only write to the cache if GitHub gave us a valid response (not a rate limit error)
+  if echo "$response" | grep -q '"tag_name"'; then
+    echo "$response" >"$cache_file"
+  fi
+
+  echo "$response"
+}
+
+# Calculate human-readable age from ISO 8601 timestamp and colorize it
+format_age() {
+  local release_date_iso="$1"
+  if [ -z "$release_date_iso" ]; then
+    echo ""
+    return
+  fi
+
+  local release_epoch
+  # macOS (BSD date) parsing
+  if ! release_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$release_date_iso" "+%s" 2>/dev/null); then
+    echo ""
+    return
+  fi
+
+  local current_epoch
+  current_epoch=$(date "+%s")
+
+  local diff_seconds=$((current_epoch - release_epoch))
+  local diff_days=$((diff_seconds / 86400))
+
+  local RED='\033[0;31m'
+  local GREEN='\033[0;32m'
+  local NC='\033[0m' # No Color
+  local color_code=""
+
+  if [ "$diff_seconds" -lt 86400 ]; then
+    color_code="${RED}"
+  else
+    color_code="${GREEN}"
+  fi
+  if [ "$diff_days" -eq 0 ]; then
+    echo -e "${color_code}(Released today)${NC}"
+  elif [ "$diff_days" -lt 30 ]; then
+    local day_str="days"
+    [ "$diff_days" -eq 1 ] && day_str="day"
+    echo -e "${color_code}(Released $diff_days $day_str ago)${NC}"
+  elif [ "$diff_days" -lt 365 ]; then
+    local months=$((diff_days / 30))
+    local month_str="months"
+    [ "$months" -eq 1 ] && month_str="month"
+    echo -e "${color_code}(Released $months $month_str ago)${NC}"
+  else
+    local years=$((diff_days / 365))
+    local year_str="years"
+    [ "$years" -eq 1 ] && year_str="year"
+    echo -e "${color_code}(Released $years $year_str ago)${NC}"
+  fi
+}
+
+# Extract the currently installed version from the ledger and sanitize it
+get_local_version() {
+  local tool_name="$1"
+  # Grabs the right side of the '=', then deletes everything EXCEPT letters, numbers, dots, hyphens, and underscores
+  grep "^${tool_name}=" "$RECEIPTS_FILE" | head -n 1 | cut -d'=' -f2 | tr -cd '[:alnum:]_.-' || true
+}
+
+# Check standard GitHub repositories
+check_github() {
+  local tool_name="$1"
+  local repo="$2"
+
+  local current_version
+  current_version=$(get_local_version "$tool_name")
+
+  if [ -z "$current_version" ]; then
+    echo "⏭️  $tool_name: Not found in receipts (Not installed)."
+    return
+  fi
+
+  # Fetch the JSON response via our caching wrapper
+  local api_response
+  api_response=$(github_curl "https://api.github.com/repos/$repo/releases/latest")
+
+  # Extract tag and date (Immune to minified JSON)
+  local latest_version
+  latest_version=$(echo "$api_response" | grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed -E 's/"tag_name": *"([^"]+)"/\1/' || true)
+
+  local published_at
+  published_at=$(echo "$api_response" | grep -o '"published_at": *"[^"]*"' | head -n 1 | sed -E 's/"published_at": *"([^"]+)"/\1/' || true)
+
+  local age_str=""
+  if [ -n "$published_at" ]; then
+    age_str=$(format_age "$published_at")
+  fi
+
+  if [ -z "$latest_version" ]; then
+    echo "⚠️  $tool_name: Failed to fetch latest version from GitHub."
+    return
+  fi
+
+  # ✨ SMART ALIGNMENT: If local version lacks a 'v' but GitHub has one, strip the 'v' from GitHub's tag
+  if [[ ! "$current_version" == v* ]] && [[ "$latest_version" == v* ]]; then
+    latest_version="${latest_version#v}"
+  fi
+
+  if [ "$current_version" != "$latest_version" ]; then
+    echo -e "🚨 UPDATE AVAILABLE: $tool_name (Current: $current_version -> Latest: $latest_version) $age_str"
+    if [[ ! "$latest_version" == v* ]]; then
+      echo "   👉 https://github.com/$repo/releases/tag/v$latest_version"
+    else
+      echo "   👉 https://github.com/$repo/releases/tag/$latest_version"
+    fi
+  else
+    echo -e "✅ $tool_name is up-to-date ($current_version) $age_str"
+  fi
+}
+
+# Check basic custom JSON endpoints (Go, Node)
+check_custom_api() {
+  local tool_name="$1"
+  local latest_version="$2"
+  local age_str="${3:-}"
+  local current_version
+
+  current_version=$(get_local_version "$tool_name")
+
+  if [ -z "$current_version" ]; then
+    echo "⏭️  $tool_name: Not found in receipts."
+    return
+  fi
+
+  if [ -z "$latest_version" ]; then
+    echo "⚠️  $tool_name: Failed to fetch latest version."
+    return
+  fi
+
+  if [ "$current_version" != "$latest_version" ]; then
+    echo -e "🚨 UPDATE AVAILABLE: $tool_name (Current: $current_version -> Latest: $latest_version) $age_str"
+  else
+    echo -e "✅ $tool_name is up-to-date ($current_version) $age_str"
+  fi
+}
+
+# Check NPM Registry for composite pnpm & biome receipt
+check_npm_packages() {
+  local receipt_val
+  receipt_val=$(get_local_version "NPM_Packages")
+
+  if [ -z "$receipt_val" ]; then
+    echo "⏭️  NPM_Packages: Not found in receipts."
+    return
+  fi
+
+  # Split the composite string
+  local current_pnpm="${receipt_val%_*}"
+  local current_biome="${receipt_val#*_}"
+
+  local NPM_BIN="$HOME/.local/bin/npm"
+  if [ ! -x "$NPM_BIN" ]; then
+    NPM_BIN="npm"
+  fi
+
+  local latest_pnpm
+  latest_pnpm=$("$NPM_BIN" view pnpm version 2>/dev/null || true)
+
+  local pnpm_time
+  pnpm_time=$("$NPM_BIN" view pnpm time --json 2>/dev/null | grep "\"$latest_pnpm\":" | head -n 1 | cut -d'"' -f4 | cut -c1-19 || true)
+
+  local pnpm_age=""
+  if [ -n "$pnpm_time" ]; then
+    pnpm_age=$(format_age "${pnpm_time}Z")
+  fi
+
+  local latest_biome
+  latest_biome=$("$NPM_BIN" view @biomejs/biome version 2>/dev/null || true)
+
+  local biome_time
+  biome_time=$("$NPM_BIN" view @biomejs/biome time --json 2>/dev/null | grep "\"$latest_biome\":" | head -n 1 | cut -d'"' -f4 | cut -c1-19 || true)
+
+  local biome_age=""
+  if [ -n "$biome_time" ]; then
+    biome_age=$(format_age "${biome_time}Z")
+  fi
+
+  if [ -n "$latest_pnpm" ]; then
+    if [ "$current_pnpm" != "$latest_pnpm" ]; then
+      echo -e "🚨 UPDATE AVAILABLE: pnpm (Current: $current_pnpm -> Latest: $latest_pnpm) $pnpm_age"
+    else
+      echo -e "✅ pnpm is up-to-date ($current_pnpm) $pnpm_age"
+    fi
+  else
+    echo "⚠️  pnpm: Failed to fetch latest version."
+  fi
+
+  if [ -n "$latest_biome" ]; then
+    if [ "$current_biome" != "$latest_biome" ]; then
+      echo -e "🚨 UPDATE AVAILABLE: biome (Current: $current_biome -> Latest: $latest_biome) $biome_age"
+    else
+      echo -e "✅ biome is up-to-date ($current_biome) $biome_age"
+    fi
+  else
+    echo "⚠️  biome: Failed to fetch latest version."
+  fi
+}
+
+# Check Google Cloud SDK manifest
+check_gcloud() {
+  local current_version
+  current_version=$(get_local_version "Gcloud")
+
+  if [ -z "$current_version" ]; then
+    echo "⏭️  Gcloud: Not found in receipts."
+    return
+  fi
+
+  local latest_version
+  latest_version=$(curl --proto '=https' --tlsv1.2 -sSL "https://dl.google.com/dl/cloudsdk/channels/rapid/components-2.json" |
+    grep -o '"version": "[^"]*"' | head -n 1 | sed -E 's/"version": "([^"]+)"/\1/' || true)
+
+  if [ -z "$latest_version" ]; then
+    echo "⚠️  Gcloud: Failed to fetch latest version."
+    return
+  fi
+
+  if [ "$current_version" != "$latest_version" ]; then
+    echo -e "🚨 UPDATE AVAILABLE: Gcloud (Current: $current_version -> Latest: $latest_version)"
+    echo "   👉 https://cloud.google.com/sdk/docs/downloads-versioned-archives"
+  else
+    echo -e "✅ Gcloud is up-to-date ($current_version)"
+  fi
+}
+
+# Check OpenTofu & OpenTofu LS composite receipt
+check_opentofu() {
+  local receipt_val
+  receipt_val=$(get_local_version "OpenTofu")
+
+  if [ -z "$receipt_val" ]; then
+    echo "⏭️  OpenTofu: Not found in receipts."
+    return
+  fi
+
+  local current_tofu="${receipt_val%_*}"
+  local current_tofuls="${receipt_val#*_}"
+
+  local tofu_response
+  tofu_response=$(github_curl "https://api.github.com/repos/opentofu/opentofu/releases/latest")
+  local latest_tofu=$(echo "$tofu_response" | grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed -E 's/"tag_name": *"v?([^"]+)"/\1/' || true)
+  local tofu_date=$(echo "$tofu_response" | grep -o '"published_at": *"[^"]*"' | head -n 1 | sed -E 's/"published_at": *"([^"]+)"/\1/' || true)
+  local tofu_age=$(format_age "$tofu_date")
+
+  local tofuls_response
+  tofuls_response=$(github_curl "https://api.github.com/repos/opentofu/tofu-ls/releases/latest")
+  local latest_tofuls=$(echo "$tofuls_response" | grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed -E 's/"tag_name": *"v?([^"]+)"/\1/' || true)
+  local tofuls_date=$(echo "$tofuls_response" | grep -o '"published_at": *"[^"]*"' | head -n 1 | sed -E 's/"published_at": *"([^"]+)"/\1/' || true)
+  local tofuls_age=$(format_age "$tofuls_date")
+
+  if [ -n "$latest_tofu" ]; then
+    if [ "$current_tofu" != "$latest_tofu" ]; then
+      echo -e "🚨 UPDATE AVAILABLE: OpenTofu (Current: $current_tofu -> Latest: $latest_tofu) $tofu_age"
+      echo "   👉 https://github.com/opentofu/opentofu/releases/tag/v$latest_tofu"
+    else
+      echo -e "✅ OpenTofu is up-to-date ($current_tofu) $tofu_age"
+    fi
+  else
+    echo "⚠️  OpenTofu: Failed to fetch latest version."
+  fi
+
+  if [ -n "$latest_tofuls" ]; then
+    if [ "$current_tofuls" != "$latest_tofuls" ]; then
+      echo -e "🚨 UPDATE AVAILABLE: OpenTofu LS (Current: $current_tofuls -> Latest: $latest_tofuls) $tofuls_age"
+      echo "   👉 https://github.com/opentofu/tofu-ls/releases/tag/v$latest_tofuls"
+    else
+      echo -e "✅ OpenTofu LS is up-to-date ($current_tofuls) $tofuls_age"
+    fi
+  else
+    echo "⚠️  OpenTofu LS: Failed to fetch latest version."
+  fi
+}
+
+# Check Go module proxy
+check_go_pkg() {
+  local tool_name="$1"
+  local module_path="$2"
+  local current_version
+
+  current_version=$(get_local_version "$tool_name")
+
+  if [ -z "$current_version" ]; then
+    echo "⏭️  $tool_name: Not found in receipts."
+    return
+  fi
+
+  local api_response
+  api_response=$(curl --proto '=https' --tlsv1.2 -sSL "https://proxy.golang.org/${module_path}/@latest" || true)
+
+  local latest_version
+  latest_version=$(echo "$api_response" | grep -o '"Version":"[^"]*"' | sed -E 's/"Version":"([^"]+)"/\1/' || true)
+
+  local pkg_time
+  pkg_time=$(echo "$api_response" | grep -o '"Time":"[^"]*"' | sed -E 's/"Time":"([^"]+)"/\1/' || true)
+
+  local pkg_age=""
+  if [ -n "$pkg_time" ]; then
+    pkg_age=$(format_age "$pkg_time")
+  fi
+
+  if [ -z "$latest_version" ]; then
+    echo "⚠️  $tool_name: Failed to fetch latest version."
+    return
+  fi
+
+  if [ "$current_version" != "$latest_version" ]; then
+    echo -e "🚨 UPDATE AVAILABLE: $tool_name (Current: $current_version -> Latest: $latest_version) $pkg_age"
+  else
+    echo -e "✅ $tool_name is up-to-date ($current_version) $pkg_age"
+  fi
+}
+
+# ==============================================================================
+# 2. EXECUTE CHECKS
+# ==============================================================================
+
+echo "--- Virtualization & Infrastructure ---"
+check_github "Colima" "abiosoft/colima"
+check_github "Lima" "lima-vm/lima"
+check_gcloud
+check_opentofu
+
+echo -e "\n--- Core Applications ---"
+check_github "Alacritty" "alacritty/alacritty"
+check_github "JetBrainsMono" "ryanoasis/nerd-fonts"
+check_github "Neovim" "neovim/neovim"
+
+echo -e "\n--- Languages & Environments ---"
+LATEST_GO=$(curl --proto '=https' --tlsv1.2 -sSL "https://go.dev/dl/?mode=json" | grep -o '"version": "[^"]*"' | head -n 1 | sed -E 's/"version": "go([^"]+)"/\1/' || true)
+check_custom_api "Go" "$LATEST_GO"
+
+NODE_INFO=$(curl --proto '=https' --tlsv1.2 -sSL "https://nodejs.org/dist/index.tab" | awk 'NR>1 && $10!="-" && !found {print $1, $2; found=1}' || true)
+LATEST_NODE=$(echo "$NODE_INFO" | awk '{print $1}' || true)
+NODE_DATE=$(echo "$NODE_INFO" | awk '{print $2}' || true)
+NODE_AGE=""
+if [ -n "$NODE_DATE" ]; then
+  NODE_AGE=$(format_age "${NODE_DATE}T00:00:00Z")
+fi
+
+check_custom_api "Node" "$LATEST_NODE" "$NODE_AGE"
+
+echo -e "\n--- CLI Utilities & Packages ---"
+check_github "Ripgrep" "BurntSushi/ripgrep"
+check_github "fd" "sharkdp/fd"
+check_github "Protoc" "protocolbuffers/protobuf"
+check_github "Lazygit" "jesseduffield/lazygit"
+check_github "Treesitter" "tree-sitter/tree-sitter"
+check_github "TruffleHog" "trufflesecurity/trufflehog"
+check_npm_packages
+check_go_pkg "Gopls" "golang.org/x/tools/gopls"
+check_go_pkg "Goimports" "golang.org/x/tools"
+check_go_pkg "Gopls" "golang.org/x/tools/gopls"
+check_go_pkg "Goimports" "golang.org/x/tools"
+check_go_pkg "Buf" "github.com/bufbuild/buf"
+check_go_pkg "Go_Generators" "google.golang.org/protobuf"
+
+echo "----------------------------------------------------"
+echo "🏁 Update check complete."
+
+      ]]>
+    </file>
+    <file path="scripts/consolidate.sh">
+      <![CDATA[
+#!/bin/bash
+# Used to consolidate a codebase into an LLM-optimized single XML file.
+# Automatically filters out binary files and common massive directories.
+
+# --- Configuration & Defaults ---
+OUTPUT_FILE="files-consolidated.xml"
+TARGET_DIRS=()
+SIZE_WARNING_THRESHOLD=500000 # ~125k-150k LLM tokens
+
+# Standard directories to always ignore (saves traversal time and tokens)
+EXCLUDE_DIRS=("node_modules" "dist" "build" "public" "vendor" "bin" "__pycache__" "venv" ".venv" ".next" "out")
+
+# Specific token-heavy/generated files that offer no logic value to LLMs
+EXCLUDE_FILES=("go.sum" "package-lock.json" "yarn.lock" "pnpm-lock.yaml" "poetry.lock" "*.tfstate" "*.tfstate.backup" "*.min.js" "*.min.css" "*.map" ".DS_Store")
+
+# --- Parse Arguments ---
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+  --output | -o)
+    OUTPUT_FILE="$2"
+    shift 2
+    ;;
+  -*)
+    echo "Unknown parameter passed: $1"
+    exit 1
+    ;;
+  *)
+    TARGET_DIRS+=("$1")
+    shift
+    ;;
+  esac
+done
+
+if [ -z "$OUTPUT_FILE" ]; then
+  OUTPUT_FILE="files-consolidated.xml"
+fi
+# Dynamically ignore the output file so we don't 'cat' it into itself
+EXCLUDE_FILES+=("$(basename "$OUTPUT_FILE")")
+
+if [ ${#TARGET_DIRS[@]} -gt 0 ]; then
+  SEARCH_BASE=("${TARGET_DIRS[@]}")
+else
+  SEARCH_BASE=(".")
+fi
+
+# --- Build Prune & Exclude Logic ---
+PRUNE_LOGIC=()
+
+# 1. Prune all hidden directories (e.g., .git, .idea, .vscode) but keep '.' and '..'
+PRUNE_LOGIC+=("-type" "d" "-name" ".*" "!" "-name" "." "!" "-name" ".." "-prune" "-o")
+
+# 2. Prune specific heavy directories
+for dir in "${EXCLUDE_DIRS[@]}"; do
+  PRUNE_LOGIC+=("-type" "d" "-name" "$dir" "-prune" "-o")
+done
+
+# 3. Prune specific ignored files
+for file in "${EXCLUDE_FILES[@]}"; do
+  PRUNE_LOGIC+=("-name" "$file" "-prune" "-o")
+done
+
+echo "🔍 Scanning: ${SEARCH_BASE[*]}"
+echo "📝 Output will be saved to: $OUTPUT_FILE"
+
+# --- Execute Find & Filter Binaries ---
+FILES=()
+while IFS= read -r -d '' file_path; do
+  # Check if the file is binary using its mime-encoding
+  # If it is NOT binary, add it to our array
+  if ! file -b --mime-encoding "$file_path" | grep -q "binary"; then
+    FILES+=("$file_path")
+  fi
+done < <(find "${SEARCH_BASE[@]}" "${PRUNE_LOGIC[@]}" -type f -print0 2>/dev/null)
+
+FILE_COUNT=${#FILES[@]}
+
+if [ "$FILE_COUNT" -eq 0 ]; then
+  echo "⚠️ No text files found matching the criteria."
+  exit 0
+fi
+
+echo "📦 Compiling $FILE_COUNT text file(s) into LLM context format..."
+
+# --- Write LLM Optimized Output ---
+# Ensure the destination directory exists before writing
+mkdir -p "$(dirname "$OUTPUT_FILE")" || {
+  echo "❌ FATAL: Could not create directory for $OUTPUT_FILE"
+  exit 1
+}
+>"$OUTPUT_FILE"
+
+cat <<'EOF' >>"$OUTPUT_FILE"
+<repository_context>
+  <system_instructions>
+    You are an expert software engineer and architect. Review the 'directory_structure' to understand the project architecture, then review the code in the 'files' section. 
+    
+    CRITICAL RULES:
+    1. NEVER output an entire file unless explicitly asked to do so.
+    2. When suggesting changes, ONLY output the specific blocks or lines that need modification.
+    3. Clearly state which file you are modifying and provide surrounding context (a few lines above and below).
+    4. Think step-by-step: Briefly explain your reasoning BEFORE writing code.
+    5. Be direct, concise, and professional.
+  </system_instructions>
+
+  <directory_structure>
+EOF
+
+# 1. Print Directory Index
+printf "%s\n" "${FILES[@]}" | sort | awk -F'/' '{
+  path=""
+  for(i=1; i<=NF; i++) {
+    path = path ? path"/"$i : $i
+    if (!seen[path]) {
+      seen[path]=1
+      indent=""
+      for(j=1; j<i; j++) indent = indent"  "
+      if (i == NF) {
+        print indent "- " $i
+      } else {
+        print indent "- " $i "/"
+      }
+    }
+  }
+}' >>"$OUTPUT_FILE"
+
+echo "  </directory_structure>" >>"$OUTPUT_FILE"
+echo "" >>"$OUTPUT_FILE"
+echo "  <files>" >>"$OUTPUT_FILE"
+
+# 2. Print File Contents inside CDATA blocks
+count=0
+
+for file_path in "${FILES[@]}"; do
+  ((count++))
+  display_path=${file_path#./}
+
+  echo -ne "\r⏳ Processing ($count/$FILE_COUNT): $display_path\033[K" >&2
+
+  # Wrap in XML and CDATA tags to prevent syntax characters from breaking the XML tree
+  echo "    <file path=\"$display_path\">" >>"$OUTPUT_FILE"
+  echo "      <![CDATA[" >>"$OUTPUT_FILE"
+
+  # Inject the raw file contents
+  cat "$file_path" >>"$OUTPUT_FILE"
+
+  # Ensure there is a newline before closing CDATA in case the file doesn't end with one
+  echo "" >>"$OUTPUT_FILE"
+  echo "      ]]>" >>"$OUTPUT_FILE"
+  echo "    </file>" >>"$OUTPUT_FILE"
+done
+
+echo -e "\n" >&2
+
+echo "  </files>" >>"$OUTPUT_FILE"
+echo "</repository_context>" >>"$OUTPUT_FILE"
+
+# --- Size Calculation & Warnings ---
+FILE_SIZE_BYTES=$(wc -c <"$OUTPUT_FILE" | tr -d ' ')
+FILE_SIZE_HUMAN=$(du -h "$OUTPUT_FILE" | cut -f1)
+ESTIMATED_TOKENS=$((FILE_SIZE_BYTES / 4))
+
+echo "✅ Process complete. Results saved to: $OUTPUT_FILE ($FILE_SIZE_HUMAN)"
+
+if [ "$FILE_SIZE_BYTES" -gt "$SIZE_WARNING_THRESHOLD" ]; then
+  echo "⚠️  WARNING: The generated file is quite large ($FILE_SIZE_HUMAN)."
+  echo "    This is roughly ~$ESTIMATED_TOKENS tokens. Ensure your LLM has an adequate context window!"
+fi
+
+# --- Automated Secret Scanning ---
+echo "🔍 Scanning consolidated file for secrets..."
+if command -v trufflehog &>/dev/null; then
+  if trufflehog filesystem "$OUTPUT_FILE" --fail; then
+    echo "✅ Clean: No secrets detected in $OUTPUT_FILE."
+  else
+    echo "🚨 FATAL: TruffleHog found potential secrets in $OUTPUT_FILE!"
+    echo "   Do NOT share this file with an LLM until you scrub the secrets from the source files and re-run this script."
+    exit 1
+  fi
+else
+  echo "⚠️  WARNING: TruffleHog binary not found in PATH. Skipping automated secret scan."
+  echo "   Please manually verify $OUTPUT_FILE for API keys and credentials before sharing."
+fi
+
+      ]]>
+    </file>
+    <file path="scripts/hog-setup.sh">
+      <![CDATA[
+#!/bin/bash
+#
+# Install automated secret scanning with TruffleHog (Local Binary) & Git Hooks.
+
+set -euo pipefail
+
+# --- Configuration ---
+HOOKS_DIR="$HOME/.git-hooks"
+PRE_COMMIT_FILE="$HOOKS_DIR/pre-commit"
+COMMIT_MSG_FILE="$HOOKS_DIR/commit-msg"
+EXCLUDE_FILE="$HOOKS_DIR/exclude-paths.txt"
+
+# --- Setup Directories ---
+echo "🚀 Setting up TruffleHog secret scanning..."
+mkdir -p "$HOOKS_DIR"
+
+# --- 1. Create Exclude File ---
+echo "📝 Creating exclude configuration..."
+cat >"$EXCLUDE_FILE" <<'EOF'
+node_modules/
+vendor/
+dist/
+build/
+\.git/
+package-lock\.json$
+pnpm-lock\.yaml$
+yarn\.lock$
+EOF
+
+# --- 2. Create Pre-Commit Hook (The Scanner) ---
+echo "🔨 Installing pre-commit hook..."
+cat >"$PRE_COMMIT_FILE" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+EXCLUDE_FILE="$HOME/.git-hooks/exclude-paths.txt"
+TRUFFLEHOG_BIN="$HOME/.local/bin/trufflehog"
+
+if [ ! -x "$TRUFFLEHOG_BIN" ]; then
+    echo "⚠️  WARNING: Local TruffleHog binary not found at $TRUFFLEHOG_BIN. Scan skipped." >&2
+    exit 0 
+fi
+
+if git diff --cached --quiet; then
+    exit 0
+fi
+
+echo "────────────────────────────────────────────────────────"
+echo "🚀 TruffleHog Pre-Commit Scan"
+echo "────────────────────────────────────────────────────────"
+echo "🔍 Scanning staged files..."
+
+# Use standard OS temp directory (much faster, no Docker mount constraints)
+TEMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TEMP_DIR"' EXIT
+
+git diff --cached --name-only -z --diff-filter=ACMR | git checkout-index --stdin -z --prefix="$TEMP_DIR/"
+
+SCAN_ARGS=("filesystem" "$TEMP_DIR" "--fail")
+
+if [ -f "$EXCLUDE_FILE" ]; then
+    echo "   (Using exclusions from global config)"
+    SCAN_ARGS+=("--exclude-paths=$EXCLUDE_FILE")
+fi
+
+if "$TRUFFLEHOG_BIN" "${SCAN_ARGS[@]}"; then
+    exit 0 
+else
+    echo "" >&2
+    echo "🚫 COMMIT REJECTED: Potential secrets found." >&2
+    echo "   Please remove the secret or address the finding and try again." >&2
+    exit 1
+fi
+EOF
+
+# --- 3. Create Commit-Msg Hook (The Trailer) ---
+echo "🔨 Installing commit-msg hook..."
+cat >"$COMMIT_MSG_FILE" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+MSG_FILE="$1"
+TRAILER="Secret-Scan: Passed"
+
+if grep -q "^$TRAILER" "$MSG_FILE"; then
+    exit 0
+fi
+
+echo "" >> "$MSG_FILE"
+echo "$TRAILER" >> "$MSG_FILE"
+EOF
+
+# --- Finalize ---
+chmod +x "$PRE_COMMIT_FILE"
+chmod +x "$COMMIT_MSG_FILE"
+git config --global core.hooksPath "$HOOKS_DIR"
+
+echo "✅ Success! Global hooks installed natively."
+
+      ]]>
+    </file>
+    <file path="uninstall-arm.sh">
+      <![CDATA[
+#!/bin/bash
+set -euo pipefail
+# ==============================================================================
+# ZERO-TRUST IDE TEARDOWN SCRIPT (macOS / Apple Silicon ARM64)
+# Completely removes all tools, caches, configs, ledgers, and VMs installed.
+# ==============================================================================
+
+echo "🧹 Initiating Zero-Trust IDE teardown..."
+echo "⚠️  WARNING: This will permanently delete your Colima containers, volumes, fonts, and Neovim configurations."
+read -p "Are you sure you want to proceed? (y/N): " confirm
+if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+  echo "🛑 Aborting uninstall."
+  exit 0
+fi
+
+LOCAL_DIR="$HOME/.local"
+BIN_DIR="$LOCAL_DIR/bin"
+CACHE_DIR="$HOME/.cache/ide-bootstrap"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ------------------------------------------------------------------------------
+# 1. REMOVE GLOBAL GIT HOOKS (TruffleHog)
+# ------------------------------------------------------------------------------
+echo "🛡️  Removing TruffleHog global Git hooks..."
+if [ -f "$SCRIPT_DIR/scripts/hog-uninstall.sh" ]; then
+  bash "$SCRIPT_DIR/scripts/hog-uninstall.sh"
+else
+  git config --global --unset core.hooksPath 2>/dev/null || true
+  rm -rf "$HOME/.git-hooks" "$HOME/.trufflehog-tmp"
+fi
+
+# ------------------------------------------------------------------------------
+# 2. STOP RUNNING SERVICES (Colima / Lima)
+# ------------------------------------------------------------------------------
+echo "🛑 Stopping Colima and Lima virtual machines..."
+if command -v colima &>/dev/null; then
+  colima stop --force 2>/dev/null || true
+fi
+if command -v limactl &>/dev/null; then
+  limactl stop --force colima 2>/dev/null || true
+fi
+
+# ------------------------------------------------------------------------------
+# 3. UNLOCK READ-ONLY DIRECTORIES & CLEAR CACHES
+# ------------------------------------------------------------------------------
+echo "🔓 Clearing Go module cache and unlocking read-only files..."
+
+# 1. Let Go natively handle its own stubborn read-only module cache BEFORE we delete Go
+if [ -x "$LOCAL_DIR/go/bin/go" ]; then
+  env GOPATH="$HOME/go" "$LOCAL_DIR/go/bin/go" clean -modcache 2>/dev/null || true
+elif command -v go &>/dev/null; then
+  go clean -modcache 2>/dev/null || true
+fi
+
+# 2. Add 'X' to chmod (capital X grants execute/traversal rights to directories)
+#    This acts as a failsafe for Go, and handles read-only Git objects in Neovim dirs.
+chmod -R u+rwX "$HOME/go" "$LOCAL_DIR/go" "$HOME/.config/nvim" "$HOME/.local/share/nvim" 2>/dev/null || true
+
+# ------------------------------------------------------------------------------
+# 4. REMOVE APPLICATION DIRECTORIES, CACHES & LEDGERS
+# ------------------------------------------------------------------------------
+echo "🗑️  Removing extracted application directories and ledgers..."
+rm -rf "$LOCAL_DIR/nvim-app"
+rm -rf "$LOCAL_DIR/google-cloud-sdk"
+rm -rf "$LOCAL_DIR/go"
+rm -rf "$HOME/go"        # Removes Go module cache and any user-installed Go binaries
+rm -rf "$LOCAL_DIR/node" # This automatically removes global Biome & npm packages
+rm -rf "$LOCAL_DIR/include/google"
+rm -rf "$CACHE_DIR"
+rm -f "$LOCAL_DIR/.ide_receipts" # Removes the smart-update ledger
+
+# ------------------------------------------------------------------------------
+# 5. REMOVE CONFIGURATIONS, STATE & VIRTUAL MACHINES
+# ------------------------------------------------------------------------------
+echo "🗑️  Removing configuration files, editor state, and VM data..."
+rm -rf "$HOME/.config/nvim"
+rm -rf "$HOME/.config/alacritty"
+rm -rf "$HOME/.local/share/nvim"
+rm -rf "$HOME/.local/state/nvim"
+rm -rf "$HOME/.cache/nvim"
+rm -rf "$HOME/.colima"
+rm -rf "$HOME/.lima"
+
+# ------------------------------------------------------------------------------
+# 6. REMOVE ALACRITTY APP
+# ------------------------------------------------------------------------------
+if [[ -d "/Applications/Alacritty.app" ]]; then
+  echo "🗑️  Removing Alacritty.app from System Applications (may prompt for password)..."
+  sudo rm -rf "/Applications/Alacritty.app" 2>/dev/null || true
+elif [[ -d "$HOME/Applications/Alacritty.app" ]]; then
+  echo "🗑️  Removing Alacritty.app from User Applications..."
+  rm -rf "$HOME/Applications/Alacritty.app"
+fi
+
+# ------------------------------------------------------------------------------
+# 8. REMOVE FONTS
+# ------------------------------------------------------------------------------
+echo "🔤 Removing JetBrains Mono Nerd Font..."
+rm -f "$HOME/Library/Fonts/JetBrainsMono"*.ttf
+rm -f "$HOME/Library/Fonts/JetBrainsMono"*.otf 2>/dev/null || true
+
+# ------------------------------------------------------------------------------
+# 9. SURGICALLY REMOVE BINARIES & SYMLINKS
+# ------------------------------------------------------------------------------
+echo "🗑️  Cleaning up ~/.local/bin..."
+# We explicitly target only the binaries, wrappers, and symlinks our script created.
+BINARIES_TO_REMOVE=(
+  "colima" "lima" "limactl" "docker" "docker-compose" "gcloud"
+  "go" "node" "npm" "npx" "pnpm" "pnpx" "nvim" "rg" "fd"
+  "lazygit" "tree-sitter" "tofu" "tofu-ls" "terraform" "terraform-ls"
+  "gopls" "goimports" "trufflehog" "govulnfix" "protoc"
+  "buf" "protoc-gen-go" "protoc-gen-connect-go" "protoc-gen-es" "ceph"
+)
+
+# Dynamically find and remove any symlinks we created from the scripts directory
+if [ -d "$SCRIPT_DIR/scripts" ]; then
+  for script in "$SCRIPT_DIR/scripts"/*.sh; do
+    if [ -f "$script" ]; then
+      BINARIES_TO_REMOVE+=("$(basename "$script" .sh)")
+    fi
+  done
+fi
+
+for bin in "${BINARIES_TO_REMOVE[@]}"; do
+  rm -f "$BIN_DIR/$bin"
+done
+
+# ------------------------------------------------------------------------------
+# 10. CLEAN UP ZSHRC
+# ------------------------------------------------------------------------------
+echo "📝 Cleaning up ~/.zshrc profile..."
+ZSHRC="$HOME/.zshrc"
+if [ -f "$ZSHRC" ]; then
+  # Use macOS compatible 'sed' (-i '') to delete the specific lines we injected
+  sed -i '' '/export PATH="$HOME\/.local\/bin:$PATH"/d' "$ZSHRC"
+  sed -i '' '/export PATH="$HOME\/.local\/node\/bin:$PATH"/d' "$ZSHRC"
+  sed -i '' '/export PATH="$PATH:$HOME\/go\/bin"/d' "$ZSHRC"
+fi
+
+echo "=============================================================================="
+echo "✅ Teardown complete! The Zero-Trust IDE has been completely removed."
+echo "👉 Note: Run 'source ~/.zshrc' or restart your terminal to clear the old environment variables."
+echo "=============================================================================="
+
+      ]]>
+    </file>
+    <file path="files-consolidated.xml">
+      <![CDATA[
+<repository_context>
+  <system_instructions>
+    You are an expert software engineer and architect. Review the 'directory_structure' to understand the project architecture, then review the code in the 'files' section. 
+    
+    CRITICAL RULES:
+    1. NEVER output an entire file unless explicitly asked to do so.
+    2. When suggesting changes, ONLY output the specific blocks or lines that need modification.
+    3. Clearly state which file you are modifying and provide surrounding context (a few lines above and below).
+    4. Think step-by-step: Briefly explain your reasoning BEFORE writing code.
+    5. Be direct, concise, and professional.
+  </system_instructions>
+
+  <directory_structure>
+- ./
+  - .gitignore
+  - chrome-settings.sh
+  - README.md
+  - scripts/
+    - check-updates.sh
+    - consolidate.sh
+    - hog-setup.sh
+    - hog-uninstall.sh
+  - setup-macarm.sh
+  - src/
+    - catalyst/
+      - go.mod
+      - main.go
+      - templates/
+        - backends/
+          - external-web/
+            - .dockerignore.tmpl
+            - .env.example.tmpl
+            - .env.tmpl
+            - .gitignore.tmpl
+            - buf.gen.yaml.tmpl
+            - cmd/
+              - server/
+                - main.go.tmpl
+            - Dockerfile.tmpl
+            - go.mod.tmpl
+            - internal/
+              - ping/
+                - ping.go.tmpl
+            - Makefile.tmpl
+        - contracts/
+          - proto/
+            - buf.yaml.tmpl
+            - ping/
+              - v1/
+                - ping.proto.tmpl
+        - frontends/
+          - svelte/
+            - .npmrc.tmpl
+            - index.html.tmpl
+            - package.json.tmpl
+            - src/
+              - App.svelte.tmpl
+              - main.ts.tmpl
+              - svelte.config.js.tmpl
+              - tsconfig.json.tmpl
+              - vite-env.d.ts.tmpl
+              - vite.config.ts.tmpl
+    - govulnfix/
+      - go.mod
+      - main.go
+  - uninstall-arm.sh
+  </directory_structure>
+
+  <files>
+    <file path="chrome-settings.sh">
+      <![CDATA[
+# I had tried to manage a browser with this setup using
+# something like brave or ungoogled chromium, but I don't think the security
+# is there (e.g. i was trying brave but the policy settings wouldn't work on a mac)
+# for now the solution is on macs to use safari as the default browser and use
+# chrome when needed for ui testing.
+#
+# the following settings turn off all tracking, calling home & ai features from chrome
+#
+# these setting can be reverted by the following command:
+# defaults delete com.google.Chrome && killall cfprefsd
+
+#!/bin/bash
+set -euo pipefail
+
+echo "🛡️  Initiating Google Chrome Lockdown (Zero-Trust Configuration)..."
+
+# Ensure Chrome is completely closed before modifying preferences
+echo "🛑 Closing Google Chrome..."
+killall "Google Chrome" 2>/dev/null || true
+
+# 1. Kill Telemetry & Data Collection
+echo "🚫 Disabling Telemetry & Analytics..."
+defaults write com.google.Chrome MetricsReportingEnabled -bool false
+defaults write com.google.Chrome SafeBrowsingExtendedReportingEnabled -bool false
+defaults write com.google.Chrome UserFeedbackAllowed -bool false
+
+# 2. Kill Cloud-based "Smart" Features
+echo "🚫 Disabling Cloud-based Typing & Search Suggestions..."
+defaults write com.google.Chrome SearchSuggestEnabled -bool false
+defaults write com.google.Chrome SpellCheckServiceEnabled -bool false
+
+# 3. Kill the Ad-Tracking "Privacy Sandbox"
+echo "🚫 Disabling Google Privacy Sandbox..."
+defaults write com.google.Chrome PrivacySandboxAdTopicsEnabled -bool false
+defaults write com.google.Chrome PrivacySandboxSiteEnabledAdsEnabled -bool false
+defaults write com.google.Chrome PrivacySandboxAdMeasurementEnabled -bool false
+
+# 4. Disable internal Credential Managers
+echo "🚫 Disabling Native Credential Managers..."
+defaults write com.google.Chrome PasswordManagerEnabled -bool false
+defaults write com.google.Chrome AutofillAddressEnabled -bool false
+defaults write com.google.Chrome AutofillCreditCardEnabled -bool false
+
+# 5. Disable background processing & Google Sync
+echo "🚫 Disabling Background Persistence & Cloud Sync..."
+defaults write com.google.Chrome EnableMediaRouter -bool false
+defaults write com.google.Chrome BackgroundModeEnabled -bool false
+defaults write com.google.Chrome SyncDisabled -bool true
+
+# 6. Local AI & LLM Killswitch
+echo "🤖 Eradicating Local AI & Gemini Nano..."
+defaults write com.google.Chrome GenAILocalFoundationalModelSettings -int 1
+defaults write com.google.Chrome AIModeSettings -int 1
+defaults write com.google.Chrome DevToolsGenAiSettings -int 2
+defaults write com.google.Chrome CreateThemesSettings -int 2
+
+# Flush the macOS preferences cache to apply immediately
+echo "🧹 Flushing macOS preference cache..."
+killall cfprefsd
+
+echo "✅ Chrome lockdown complete!"
+echo "👉 Open Chrome and visit 'chrome://policy' to verify."
+
+
+      ]]>
+    </file>
+    <file path="README.md">
+      <![CDATA[
+# substrate
+all the tools for developer setup
+
+      ]]>
+    </file>
+    <file path=".gitignore">
+      <![CDATA[
+/.DS_Store
+/files-consolidated.xml
+
+      ]]>
+    </file>
+    <file path="setup-macarm.sh">
+      <![CDATA[
+#!/bin/bash
+set -euo pipefail
+# ==============================================================================
+# ZERO-TRUST IDE BOOTSTRAP SCRIPT (macOS / Apple Silicon ARM64)
+# SMART UPDATE MODE: Only installs/updates tools if version variables change.
+# CONFIGURATION MODE: Enforces script defaults on every run (Overwrites local tweaks)
+# ==============================================================================
+
+# 🔒 Enforce strict permissions (Only owner can read/write/execute)
+umask 077
+
+echo "🛠️ Bootstrapping & Syncing macOS Zero-Trust Environment..."
+
+# 🔥 Ensure Xcode CLI Tools (which includes Python 3 for gcloud) are installed FIRST
+if ! xcode-select -p &>/dev/null; then
+  echo "❌ Xcode Command Line Tools missing. This provides Python for gcloud and Git!"
+  echo "👉 A popup should appear. Click 'Install', wait for it to finish, and run this script again."
+  xcode-select --install
+  exit 1
+fi
+
+# ==============================================================================
+# 1. TOOL VERSIONS, URLS & SHAS (macOS ARM64)
+# ==============================================================================
+
+# --- Infrastructure & Virtualization ---
+
+# Colima
+# sha: https://github.com/abiosoft/colima/releases
+COLIMA_VERSION="v0.10.3"
+COLIMA_FILE="colima-Darwin-arm64"
+COLIMA_URL="https://github.com/abiosoft/colima/releases/download/${COLIMA_VERSION}/${COLIMA_FILE}"
+COLIMA_SHA="sha256:980ad8bf61a4ca370243f4cb41401a61276dcd2c2502bee7b9b86f9250169f34"
+
+# Lima
+# sha: https://github.com/lima-vm/lima/releases
+LIMA_VERSION="v2.1.4"
+LIMA_FILE="lima-${LIMA_VERSION#v}-Darwin-arm64.tar.gz"
+LIMA_URL="https://github.com/lima-vm/lima/releases/download/${LIMA_VERSION}/${LIMA_FILE}"
+LIMA_SHA="sha256:14c5b283f1c5eb4078e5a300b8d241f69197a3e41326dfc685a69c9455917acf"
+
+# Google Cloud SDK
+# look at the windows releases to see the version number
+# sha: https://cloud.google.com/sdk/docs/downloads-versioned-archives
+GCLOUD_VERSION="575.0"
+GCLOUD_FILE="google-cloud-cli-darwin-arm.tar.gz"
+GCLOUD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_FILE}"
+GCLOUD_SHA="b4edcca2e5312748ecf6235197970ed0944a2a1318d8aa268a3e3314e7d302b3"
+
+# Alacritty
+# sha: https://github.com/alacritty/alacritty/releases
+ALACRITTY_VERSION="v0.17.0"
+ALACRITTY_FILE="Alacritty-${ALACRITTY_VERSION}.dmg"
+ALACRITTY_URL="https://github.com/alacritty/alacritty/releases/download/${ALACRITTY_VERSION}/${ALACRITTY_FILE}"
+ALACRITTY_SHA="sha256:ad8d7de35fb38e43184776cac6dfee05ca325caa0b6639a06a55e54e4b026620"
+
+# JetBrains Mono Nerd Font
+# sha: https://github.com/ryanoasis/nerd-fonts/releases
+JB_MONO_VERSION="v3.4.0"
+JB_MONO_FILE="JetBrainsMono.zip"
+JB_MONO_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${JB_MONO_VERSION}/${JB_MONO_FILE}"
+JB_MONO_SHA="76f05ff3ace48a464a6ca57977998784ff7bdbb65a6d915d7e401cd3927c493c"
+
+# --- Languages & Base Tools ---
+
+# Go
+# sha: https://go.dev/dl/
+GO_VERSION="1.26.5"
+GO_FILE="go${GO_VERSION}.darwin-arm64.tar.gz"
+GO_URL="https://go.dev/dl/${GO_FILE}"
+GO_SHA="efb87ff28af9a188d0536ef5d42e63dd52ba8263cd7344a993cc48dd11dedb6a"
+
+# Node.js
+NODE_VERSION="v24.18.0"
+NODE_FILE="node-${NODE_VERSION}-darwin-arm64.tar.xz"
+NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_FILE}"
+NODE_SHA_SOURCE="https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt"
+
+# Neovim
+# sha: https://github.com/neovim/neovim/releases
+NVIM_VERSION="v0.12.3"
+NVIM_FILE="nvim-macos-arm64.tar.gz"
+NVIM_URL="https://github.com/neovim/neovim/releases/download/$NVIM_VERSION/${NVIM_FILE}"
+NVIM_SHA="sha256:532da1d00e465a660fa01c3d4991333d09c52107dce7df937368545daca0a14e"
+
+# --- CLI Utilities ---
+
+# Ripgrep
+# sha: https://github.com/BurntSushi/ripgrep/releases
+RG_VERSION="15.1.0"
+RG_FILE="ripgrep-$RG_VERSION-aarch64-apple-darwin.tar.gz"
+RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/$RG_VERSION/${RG_FILE}"
+RG_SHA="sha256:378e973289176ca0c6054054ee7f631a065874a352bf43f0fa60ef079b6ba715"
+
+# fd
+# sha: https://github.com/sharkdp/fd/releases
+FD_VERSION="v10.4.2"
+FD_FILE="fd-$FD_VERSION-aarch64-apple-darwin.tar.gz"
+FD_URL="https://github.com/sharkdp/fd/releases/download/$FD_VERSION/${FD_FILE}"
+FD_SHA="sha256:623dc0afc81b92e4d4606b380d7bc91916ba7b97814263e554d50923a39e480a"
+
+# Protoc (Protocol Buffers Compiler)
+# sha: https://github.com/protocolbuffers/protobuf/releases
+PROTOC_VERSION="35.1"
+PROTOC_FILE="protoc-${PROTOC_VERSION}-osx-aarch_64.zip"
+PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_FILE}"
+PROTOC_SHA="sha256:193289af0470c6a1aada357d4fba0bbf8d78bfaac8b5e42ca30af2ef75583de2"
+
+# Tree-sitter
+# sha: https://github.com/tree-sitter/tree-sitter/releases
+TS_VERSION="v0.26.10"
+TS_FILE="tree-sitter-macos-arm64.gz"
+TS_URL="https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/${TS_FILE}"
+TS_SHA="sha256:821a387182db59a1942a90a1fbd8f9756d9926e2c265f5c7b9a23c523114134a"
+
+# TruffleHog
+# sha: https://github.com/trufflesecurity/trufflehog/releases
+TRUFFLEHOG_VERSION="3.95.8"
+TRUFFLEHOG_FILE="trufflehog_${TRUFFLEHOG_VERSION}_darwin_arm64.tar.gz"
+TRUFFLEHOG_URL="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/${TRUFFLEHOG_FILE}"
+TRUFFLEHOG_SHA="sha256:d6ed1f34499b97aae275e400a207c6f5d5c25b0626ddc464b82c104a719cd33b"
+
+# Lazygit
+# sha: https://github.com/jesseduffield/lazygit/releases
+LAZYGIT_VERSION="v0.63.0"
+LAZYGIT_FILE="lazygit_${LAZYGIT_VERSION#v}_darwin_arm64.tar.gz"
+LAZYGIT_URL="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/${LAZYGIT_FILE}"
+LAZYGIT_SHA="sha256:60e6bf29a1501a57a9d078538aa576a1b4db45779db2e3dd6931a7207f560a9c"
+
+# Tofu
+# sha: https://github.com/opentofu/opentofu/releases
+TOFU_VERSION="1.12.3"
+TOFU_FILE="tofu_${TOFU_VERSION}_darwin_arm64.zip"
+TOFU_URL="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/${TOFU_FILE}"
+TOFU_SHA="sha256:2b81c065cdcf5e573cfb5d9e0c663ac4cfc32512927078b645b58ef81cec2474"
+
+# Open Tofu LS
+# sha: https://github.com/opentofu/tofu-ls/releases
+TOFULS_VERSION="0.5.2"
+TOFULS_FILE="tofu-ls_Darwin_arm64.tar.gz"
+TOFULS_URL="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERSION}/${TOFULS_FILE}"
+TOFULS_SHA="sha256:935852b3a3264d3a9ae6192c309beefe2de58b4fe2d4cceb19c110f6b82b9f60"
+
+# Global Packages (Pinned for Zero-Trust Updates) ---
+
+GOPLS_VERSION="v0.22.0"
+GOIMPORTS_VERSION="v0.47.0"
+PNPM_VERSION="11.10.0"
+BIOME_VERSION="2.5.2"
+
+# Code Generation Plugins
+BUF_VERSION="v1.48.0"
+PROTOC_GEN_GO_VERSION="v1.36.11"
+PROTOC_GEN_CONNECT_GO_VERSION="v1.18.1"
+PROTOC_GEN_ES_VERSION="2.2.3"
+
+# ==============================================================================
+# Paths & Ledger Setup
+# ==============================================================================
+CACHE_DIR="$HOME/.cache/ide-bootstrap"
+LOCAL_DIR="$HOME/.local"
+BIN_DIR="$LOCAL_DIR/bin"
+NVIM_APP_DIR="$LOCAL_DIR/nvim-app"
+GCLOUD_DIR="$LOCAL_DIR/google-cloud-sdk"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RECEIPTS_FILE="$LOCAL_DIR/.ide_receipts"
+
+mkdir -p "$BIN_DIR" "$CACHE_DIR" "$NVIM_APP_DIR"
+touch "$RECEIPTS_FILE"
+export PATH="$BIN_DIR:$LOCAL_DIR/node/bin:$PATH"
+
+# ------------------------------------------------------------------------------
+# 2. STATE TRACKING & VERIFICATION LOGIC
+# ------------------------------------------------------------------------------
+needs_update() {
+  local tool="$1"
+  local target_version="$2"
+  local current_version=""
+
+  if grep -q "^${tool}=" "$RECEIPTS_FILE" 2>/dev/null; then
+    current_version=$(grep "^${tool}=" "$RECEIPTS_FILE" | cut -d'=' -f2)
+  fi
+
+  if [ "$current_version" == "$target_version" ]; then
+    echo "✅ $tool is up-to-date ($target_version). Skipping."
+    return 1 # False: Does not need update
+  else
+    echo "🔄 Updating $tool to $target_version..."
+    return 0 # True: Needs update
+  fi
+}
+
+mark_updated() {
+  local tool="$1"
+  local version="$2"
+  grep -v "^${tool}=" "$RECEIPTS_FILE" >"${RECEIPTS_FILE}.tmp" 2>/dev/null || true
+  echo "${tool}=${version}" >>"${RECEIPTS_FILE}.tmp"
+  mv "${RECEIPTS_FILE}.tmp" "$RECEIPTS_FILE"
+}
+
+fetch_and_verify() {
+  local name=$1 bin_url=$2 orig_file=$3 local_file=$4 source=$5
+  local expected_sha=""
+  cd "$CACHE_DIR" || exit
+
+  if [[ "$source" == http* ]]; then
+    local temp_sum="${local_file}.sum"
+    # 🔒 Enforce HTTPS and TLS 1.2+
+    curl --proto '=https' --tlsv1.2 -fsSL -o "$temp_sum" "$source"
+    if grep -q "$orig_file" "$temp_sum" 2>/dev/null; then
+      expected_sha=$(grep "$orig_file" "$temp_sum" | awk '{print $1}' | head -n 1)
+    else
+      echo "❌ FATAL: The filename '$orig_file' was NOT found in the checksums file."
+      exit 1
+    fi
+  else
+    expected_sha="$source"
+  fi
+
+  # 🧹 Sanitize the expected SHA
+  expected_sha="${expected_sha#sha256:}"
+  expected_sha="${expected_sha#sha256-}"
+
+  echo "⬇️  Downloading $name..."
+  curl --proto '=https' --tlsv1.2 -fsSL -o "$local_file" "$bin_url"
+
+  echo "🔐 Verifying $name..."
+  if ! echo "$expected_sha  $local_file" | shasum -a 256 -c; then
+    echo "❌ FATAL: Checksum validation failed for $name!"
+    exit 1
+  fi
+}
+
+# ------------------------------------------------------------------------------
+# 3. SMART INSTALL / UPDATE BLOCKS
+# ------------------------------------------------------------------------------
+
+if needs_update "Colima" "$COLIMA_VERSION"; then
+  echo "🛑 Stopping active Colima instances for safe update..."
+  command -v colima &>/dev/null && colima stop 2>/dev/null || true
+  fetch_and_verify "Colima" "$COLIMA_URL" "$COLIMA_FILE" "colima" "$COLIMA_SHA"
+  cp "$CACHE_DIR/colima" "$BIN_DIR/colima" && chmod +x "$BIN_DIR/colima"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/colima" 2>/dev/null || true
+  echo "🖋️  Cryptographic check passed. Signing binary for Apple Silicon execution..."
+  codesign --force --deep --sign - "$BIN_DIR/colima"
+  mark_updated "Colima" "$COLIMA_VERSION"
+fi
+
+if needs_update "Lima" "$LIMA_VERSION"; then
+  echo "🛑 Stopping underlying Lima VMs for safe update..."
+  command -v colima &>/dev/null && colima stop 2>/dev/null || true
+  command -v limactl &>/dev/null && limactl stop --force colima 2>/dev/null || true
+  fetch_and_verify "Lima" "$LIMA_URL" "$LIMA_FILE" "lima.tar.gz" "$LIMA_SHA"
+  tar -xzf "$CACHE_DIR/lima.tar.gz" -C "$LOCAL_DIR" bin/lima bin/limactl share/lima
+  xattr -r -d com.apple.quarantine "$BIN_DIR/lima" "$BIN_DIR/limactl" 2>/dev/null || true
+  mark_updated "Lima" "$LIMA_VERSION"
+fi
+
+if needs_update "Gcloud" "$GCLOUD_VERSION"; then
+  fetch_and_verify "Google Cloud SDK" "$GCLOUD_URL" "$GCLOUD_FILE" "gcloud.tar.gz" "$GCLOUD_SHA"
+  rm -rf "$GCLOUD_DIR" && tar -xzf "$CACHE_DIR/gcloud.tar.gz" -C "$LOCAL_DIR"
+
+  echo "📦 Bootstrapping gcloud (Fetching isolated Python 3.10+)..."
+  # Run installer headlessly to fetch Google's bundled Python without modifying user dotfiles
+  env CLOUDSDK_CORE_DISABLE_PROMPTS=1 "$GCLOUD_DIR/install.sh" --quiet --path-update=false --command-completion=false
+
+  ln -sf "$GCLOUD_DIR/bin/gcloud" "$BIN_DIR/gcloud"
+  xattr -r -d com.apple.quarantine "$GCLOUD_DIR" 2>/dev/null || true
+
+  echo "🔒 Disabling gcloud internal updaters to prevent version drift..."
+  "$BIN_DIR/gcloud" config set component_manager/disable_update_check true --quiet || true
+  "$BIN_DIR/gcloud" config set core/disable_usage_reporting true --quiet || true
+
+  mark_updated "Gcloud" "$GCLOUD_VERSION"
+fi
+
+if needs_update "Alacritty" "$ALACRITTY_VERSION"; then
+  fetch_and_verify "Alacritty" "$ALACRITTY_URL" "$ALACRITTY_FILE" "alacritty.dmg" "$ALACRITTY_SHA"
+  hdiutil attach "$CACHE_DIR/alacritty.dmg" -mountpoint /Volumes/Alacritty -nobrowse -quiet
+  rm -rf /Applications/Alacritty.app 2>/dev/null || sudo rm -rf /Applications/Alacritty.app
+  cp -R /Volumes/Alacritty/Alacritty.app /Applications/
+  hdiutil detach /Volumes/Alacritty -quiet
+  xattr -r -d com.apple.quarantine /Applications/Alacritty.app 2>/dev/null || true
+  mark_updated "Alacritty" "$ALACRITTY_VERSION"
+fi
+
+if needs_update "JetBrainsMono" "$JB_MONO_VERSION"; then
+  fetch_and_verify "JetBrains Mono Nerd Font" "$JB_MONO_URL" "$JB_MONO_FILE" "JetBrainsMono.zip" "$JB_MONO_SHA"
+  mkdir -p "$CACHE_DIR/jb-mono"
+  unzip -q -o "$CACHE_DIR/JetBrainsMono.zip" -d "$CACHE_DIR/jb-mono"
+  cp "$CACHE_DIR/jb-mono/"*.ttf "$HOME/Library/Fonts/"
+  mark_updated "JetBrainsMono" "$JB_MONO_VERSION"
+fi
+
+if needs_update "Go" "$GO_VERSION"; then
+  fetch_and_verify "Go" "$GO_URL" "$GO_FILE" "go.tar.gz" "$GO_SHA"
+  rm -rf "$LOCAL_DIR/go" && tar -xzf "$CACHE_DIR/go.tar.gz" -C "$LOCAL_DIR"
+  ln -sf "$LOCAL_DIR/go/bin/go" "$BIN_DIR/go"
+  xattr -r -d com.apple.quarantine "$LOCAL_DIR/go" 2>/dev/null || true
+  echo "🔒 Locking Go environment (No auto-updates, strict proxy, strict checksums)..."
+  env GOPATH="$HOME/go" "$LOCAL_DIR/go/bin/go" env -w GOTOOLCHAIN=local GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org
+  mark_updated "Go" "$GO_VERSION"
+fi
+
+if needs_update "Node" "$NODE_VERSION"; then
+  fetch_and_verify "Node.js" "$NODE_URL" "$NODE_FILE" "node.tar.xz" "$NODE_SHA_SOURCE"
+  rm -rf "$LOCAL_DIR/node" && mkdir -p "$LOCAL_DIR/node"
+  tar -xf "$CACHE_DIR/node.tar.xz" -C "$LOCAL_DIR/node" --strip-components=1
+  ln -sf "$LOCAL_DIR/node/bin/node" "$BIN_DIR/node"
+  ln -sf "$LOCAL_DIR/node/bin/npm" "$BIN_DIR/npm"
+  ln -sf "$LOCAL_DIR/node/bin/npx" "$BIN_DIR/npx"
+  xattr -r -d com.apple.quarantine "$LOCAL_DIR/node" 2>/dev/null || true
+  echo "🔒 Disabling NPM lifecycle scripts to prevent malicious post-install execution..."
+  "$BIN_DIR/npm" config set ignore-scripts true --global
+  mark_updated "Node" "$NODE_VERSION"
+fi
+
+if needs_update "NPM_Packages" "${PNPM_VERSION}_${BIOME_VERSION}"; then
+  echo "📦 Installing Biome and pnpm securely via verified NPM binary..."
+  "$BIN_DIR/npm" install -g "pnpm@${PNPM_VERSION}" "@biomejs/biome@${BIOME_VERSION}"
+  ln -sf "$LOCAL_DIR/node/bin/pnpm" "$BIN_DIR/pnpm"
+  ln -sf "$LOCAL_DIR/node/bin/pnpx" "$BIN_DIR/pnpx"
+  mark_updated "NPM_Packages" "${PNPM_VERSION}_${BIOME_VERSION}"
+fi
+
+if needs_update "Neovim" "$NVIM_VERSION"; then
+  fetch_and_verify "Neovim" "$NVIM_URL" "$NVIM_FILE" "nvim.tar.gz" "$NVIM_SHA"
+  rm -rf "$NVIM_APP_DIR" && mkdir -p "$NVIM_APP_DIR"
+  tar -xzf "$CACHE_DIR/nvim.tar.gz" -C "$NVIM_APP_DIR" --strip-components=1
+  ln -sf "$NVIM_APP_DIR/bin/nvim" "$BIN_DIR/nvim"
+  xattr -r -d com.apple.quarantine "$NVIM_APP_DIR" 2>/dev/null || true
+  mark_updated "Neovim" "$NVIM_VERSION"
+fi
+
+if needs_update "Ripgrep" "$RG_VERSION"; then
+  fetch_and_verify "Ripgrep" "$RG_URL" "$RG_FILE" "rg.tar.gz" "$RG_SHA"
+  tar -xzf "$CACHE_DIR/rg.tar.gz" -C "$CACHE_DIR"
+  mv "$CACHE_DIR/ripgrep-$RG_VERSION-aarch64-apple-darwin/rg" "$BIN_DIR/rg"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/rg" 2>/dev/null || true
+  mark_updated "Ripgrep" "$RG_VERSION"
+fi
+
+if needs_update "fd" "$FD_VERSION"; then
+  fetch_and_verify "fd" "$FD_URL" "$FD_FILE" "fd.tar.gz" "$FD_SHA"
+  tar -xzf "$CACHE_DIR/fd.tar.gz" -C "$CACHE_DIR"
+  mv "$CACHE_DIR/fd-$FD_VERSION-aarch64-apple-darwin/fd" "$BIN_DIR/fd"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/fd" 2>/dev/null || true
+  mark_updated "fd" "$FD_VERSION"
+fi
+
+if needs_update "Protoc" "$PROTOC_VERSION"; then
+  fetch_and_verify "Protoc" "$PROTOC_URL" "$PROTOC_FILE" "protoc.zip" "$PROTOC_SHA"
+
+  mkdir -p "$CACHE_DIR/protoc"
+  unzip -q -o "$CACHE_DIR/protoc.zip" -d "$CACHE_DIR/protoc"
+
+  # 1. Install the binary
+  mv "$CACHE_DIR/protoc/bin/protoc" "$BIN_DIR/protoc"
+  chmod +x "$BIN_DIR/protoc"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/protoc" 2>/dev/null || true
+
+  # 2. Install the standard Protobuf includes (Required for descriptor.proto)
+  # protoc automatically looks in ../include relative to its binary location
+  mkdir -p "$LOCAL_DIR/include"
+  cp -R "$CACHE_DIR/protoc/include/" "$LOCAL_DIR/include/"
+
+  mark_updated "Protoc" "$PROTOC_VERSION"
+fi
+
+if needs_update "Lazygit" "$LAZYGIT_VERSION"; then
+  fetch_and_verify "Lazygit" "$LAZYGIT_URL" "$LAZYGIT_FILE" "lazygit.tar.gz" "$LAZYGIT_SHA"
+  tar -xzf "$CACHE_DIR/lazygit.tar.gz" -C "$CACHE_DIR"
+  mv "$CACHE_DIR/lazygit" "$BIN_DIR/lazygit"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/lazygit" 2>/dev/null || true
+  mark_updated "Lazygit" "$LAZYGIT_VERSION"
+fi
+
+if needs_update "Treesitter" "$TS_VERSION"; then
+  fetch_and_verify "Tree-sitter" "$TS_URL" "$TS_FILE" "tree-sitter.gz" "$TS_SHA"
+  gzip -d -c "$CACHE_DIR/tree-sitter.gz" >"$BIN_DIR/tree-sitter" && chmod +x "$BIN_DIR/tree-sitter"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/tree-sitter" 2>/dev/null || true
+  mark_updated "Treesitter" "$TS_VERSION"
+fi
+
+if needs_update "TruffleHog" "$TRUFFLEHOG_VERSION"; then
+  fetch_and_verify "TruffleHog" "$TRUFFLEHOG_URL" "$TRUFFLEHOG_FILE" "trufflehog.tar.gz" "$TRUFFLEHOG_SHA"
+  tar -xzf "$CACHE_DIR/trufflehog.tar.gz" -C "$CACHE_DIR"
+  mv "$CACHE_DIR/trufflehog" "$BIN_DIR/trufflehog"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/trufflehog" 2>/dev/null || true
+  mark_updated "TruffleHog" "$TRUFFLEHOG_VERSION"
+fi
+
+if needs_update "OpenTofu" "${TOFU_VERSION}_${TOFULS_VERSION}"; then
+  fetch_and_verify "OpenTofu" "$TOFU_URL" "$TOFU_FILE" "tofu.zip" "$TOFU_SHA"
+  fetch_and_verify "OpenTofu LS" "$TOFULS_URL" "$TOFULS_FILE" "tofu-ls.tar.gz" "$TOFULS_SHA"
+  unzip -q -o "$CACHE_DIR/tofu.zip" -d "$BIN_DIR"
+  tar -xzf "$CACHE_DIR/tofu-ls.tar.gz" -C "$BIN_DIR"
+  ln -sf "$BIN_DIR/tofu" "$BIN_DIR/terraform"
+  ln -sf "$BIN_DIR/tofu-ls" "$BIN_DIR/terraform-ls"
+  xattr -r -d com.apple.quarantine "$BIN_DIR/tofu" "$BIN_DIR/tofu-ls" 2>/dev/null || true
+  mark_updated "OpenTofu" "${TOFU_VERSION}_${TOFULS_VERSION}"
+fi
+
+if needs_update "Gopls" "$GOPLS_VERSION"; then
+  echo "📦 Compiling gopls securely (CGO disabled, strictly proxied)..."
+  env CGO_ENABLED=0 GOBIN="$BIN_DIR" GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org "$LOCAL_DIR/go/bin/go" install "golang.org/x/tools/gopls@${GOPLS_VERSION}"
+  mark_updated "Gopls" "$GOPLS_VERSION"
+fi
+
+if needs_update "Goimports" "$GOIMPORTS_VERSION"; then
+  echo "📦 Compiling goimports securely (CGO disabled, strictly proxied)..."
+  env CGO_ENABLED=0 GOBIN="$BIN_DIR" GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org "$LOCAL_DIR/go/bin/go" install "golang.org/x/tools/cmd/goimports@${GOIMPORTS_VERSION}"
+  mark_updated "Goimports" "$GOIMPORTS_VERSION"
+fi
+
+if needs_update "Buf" "$BUF_VERSION"; then
+  echo "📦 Compiling Buf CLI securely (CGO disabled, strictly proxied)..."
+  env CGO_ENABLED=0 GOBIN="$BIN_DIR" GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org "$LOCAL_DIR/go/bin/go" install "github.com/bufbuild/buf/cmd/buf@${BUF_VERSION}"
+  mark_updated "Buf" "$BUF_VERSION"
+fi
+
+if needs_update "Node_Generators" "$PROTOC_GEN_ES_VERSION"; then
+  echo "📦 Installing Node Protobuf plugins securely via verified NPM binary..."
+  # Install ONLY protoc-gen-es
+  "$BIN_DIR/npm" install -g "@bufbuild/protoc-gen-es@${PROTOC_GEN_ES_VERSION}"
+  ln -sf "$LOCAL_DIR/node/bin/protoc-gen-es" "$BIN_DIR/protoc-gen-es"
+  mark_updated "Node_Generators" "$PROTOC_GEN_ES_VERSION"
+fi
+
+echo "🧹 Cleaning up raw downloaded archives..."
+rm -rf "$CACHE_DIR"/*
+
+# ------------------------------------------------------------------------------
+# 4. UTILITY SCRIPTS, COMPILATION & GIT HOOKS
+# ------------------------------------------------------------------------------
+
+echo "📜 Linking custom utility scripts to local bin..."
+if [ -d "$SCRIPT_DIR/scripts" ]; then
+  for script in "$SCRIPT_DIR/scripts"/*.sh; do
+    if [ -f "$script" ]; then
+      script_name=$(basename "$script" .sh)
+      chmod +x "$script"
+      ln -sf "$script" "$BIN_DIR/$script_name"
+      echo "   ✅ Linked: $script_name"
+    fi
+  done
+fi
+
+echo "📦 Compiling custom local tools from src/..."
+if [ -d "$SCRIPT_DIR/src" ]; then
+  for tool_dir in "$SCRIPT_DIR/src"/*/; do
+    if [ -d "$tool_dir" ]; then
+      tool_name=$(basename "$tool_dir")
+      echo "   ⚙️  Compiling $tool_name..."
+      cd "$tool_dir" || continue
+
+      # Auto-detect Go modules and compile securely using our local Go binary
+      if [ -f "go.mod" ]; then
+        if [ "$tool_name" == "catalyst" ]; then
+          env CGO_ENABLED=0 "$LOCAL_DIR/go/bin/go" build -o "$BIN_DIR/ceph" .
+          echo "   ✅ Installed: catalyst (as 'ceph')"
+        else
+          env CGO_ENABLED=0 "$LOCAL_DIR/go/bin/go" build -o "$BIN_DIR/$tool_name" .
+          echo "   ✅ Installed: $tool_name"
+        fi
+      else
+        echo "   ⏭️  Skipped: $tool_name (No go.mod found)"
+      fi
+      cd "$CACHE_DIR" || exit
+    fi
+  done
+fi
+
+echo "🛡️  Configuring TruffleHog global Git hooks..."
+if [ -f "$SCRIPT_DIR/scripts/hog-setup.sh" ]; then
+  bash "$SCRIPT_DIR/scripts/hog-setup.sh"
+fi
+
+# ------------------------------------------------------------------------------
+# 5. CONFIGURATIONS & ZSH INJECTIONS
+# ------------------------------------------------------------------------------
+
+echo "🐳 Generating Smart Zero-Download Docker Wrappers..."
+
+# Create a bridge for 'docker' that isolates VM context
+cat <<'EOF' >"$BIN_DIR/docker"
+#!/bin/bash
+printf -v ESCAPED_ARGS "%q " "$@"
+exec colima ssh -- bash -c "export DOCKER_CONTEXT=default DOCKER_HOST=unix:///var/run/docker.sock; docker $ESCAPED_ARGS"
+EOF
+chmod +x "$BIN_DIR/docker"
+
+# Create a bridge for 'docker-compose'
+cat <<'EOF' >"$BIN_DIR/docker-compose"
+#!/bin/bash
+printf -v ESCAPED_ARGS "%q " "$@"
+exec colima ssh -- bash -c "export DOCKER_CONTEXT=default DOCKER_HOST=unix:///var/run/docker.sock; docker compose $ESCAPED_ARGS"
+EOF
+chmod +x "$BIN_DIR/docker-compose"
+
+echo "⚠️  NOTE: Docker is running entirely inside a VM via SSH wrappers."
+echo "⚠️  NOTE: Docker is running entirely inside a VM via SSH wrappers."
+echo "   - Volume mounts (-v) will only work for paths within /Users."
+echo "   - To mount paths outside /Users, run: colima start --edit"
+
+echo "⚙️  Detecting system hardware for optimal Colima allocation..."
+# Get total RAM in GB and logical CPU cores
+SYS_RAM_GB=$(($(sysctl -n hw.memsize) / 1073741824))
+SYS_CPU_CORES=$(sysctl -n hw.ncpu)
+
+# Smart allocation:
+# - RAM: ~25-30% of total system RAM, minimum 2GB, max 8GB.
+# - CPU: Half of available cores, minimum 2, max 4.
+COLIMA_MEM=$((SYS_RAM_GB / 4))
+[ "$COLIMA_MEM" -lt 2 ] && COLIMA_MEM=2
+[ "$COLIMA_MEM" -gt 8 ] && COLIMA_MEM=8
+
+COLIMA_CPU=$((SYS_CPU_CORES / 2))
+[ "$COLIMA_CPU" -lt 2 ] && COLIMA_CPU=2
+[ "$COLIMA_CPU" -gt 4 ] && COLIMA_CPU=4
+
+echo "   👉 Host has ${SYS_RAM_GB}GB RAM and ${SYS_CPU_CORES} CPUs."
+echo "   👉 Allocating ${COLIMA_MEM}GB RAM and ${COLIMA_CPU} CPUs to Colima."
+
+mkdir -p "$HOME/.colima/default"
+cat <<EOF >"$HOME/.colima/default/colima.yaml"
+# Dynamic Hardware Limits
+cpu: ${COLIMA_CPU}
+disk: 60
+memory: ${COLIMA_MEM}
+
+# Apple Silicon Optimizations (Stops corruption, networking loops, and CPU spikes)
+vmType: vz
+rosetta: true
+mountType: virtiofs
+
+# Network Security
+network:
+  address: false # Disables reachable IP bridge; relies entirely on strict localhost port forwarding
+EOF
+
+echo "🔗 Checking shell PATH configuration..."
+ZSHRC="$HOME/.zshrc"
+touch "$ZSHRC"
+grep -q ".local/bin" "$ZSHRC" || echo 'export PATH="$HOME/.local/bin:$PATH"' >>"$ZSHRC"
+grep -q ".local/node/bin" "$ZSHRC" || echo 'export PATH="$HOME/.local/node/bin:$PATH"' >>"$ZSHRC"
+grep -q "go/bin" "$ZSHRC" || echo 'export PATH="$PATH:$HOME/go/bin"' >>"$ZSHRC"
+
+# prevent go from automatically installing new versions
+echo 'export GOTOOLCHAIN=local' >>~/.zshrc
+
+# Clone the LazyVim base repo ONLY if it doesn't exist
+if [ ! -d "$HOME/.config/nvim" ]; then
+  if ! xcode-select -p &>/dev/null; then
+    echo "❌ Xcode Command Line Tools missing. Run 'xcode-select --install' and try again."
+    exit 1
+  fi
+
+  echo "✨ Bootstrapping LazyVim base repo..."
+  git clone https://github.com/LazyVim/starter ~/.config/nvim
+  rm -rf ~/.config/nvim/.git
+
+  # Inject lazy-lock.json if it exists alongside the script
+  if [ -f "$SCRIPT_DIR/lazy-lock.json" ]; then
+    cp "$SCRIPT_DIR/lazy-lock.json" ~/.config/nvim/lazy-lock.json
+  fi
+fi
+
+# ==============================================================================
+# ENFORCED DEFAULTS: The following files are overwritten on EVERY run.
+# ==============================================================================
+echo "⚙️  Enforcing Alacritty & Neovim configuration defaults..."
+
+mkdir -p ~/.config/alacritty
+cat <<EOF >~/.config/alacritty/alacritty.toml
+[window]
+dimensions = { columns = 120, lines = 35 }
+padding = { x = 12, y = 12 }
+opacity = 0.95
+option_as_alt = "Both"
+dynamic_title = true
+[font]
+normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
+bold = { family = "JetBrainsMono Nerd Font", style = "Bold" }
+italic = { family = "JetBrainsMono Nerd Font", style = "Italic" }
+size = 18.0
+[keyboard]
+bindings = [{ key = "N", mods = "Command", action = "CreateNewWindow" }]
+[colors.primary]
+background = "#1a1b26"
+foreground = "#c0caf5"
+EOF
+
+mkdir -p ~/.config/nvim/lua/plugins ~/.config/nvim/lua/config
+
+cat <<'EOF' >~/.config/nvim/lua/config/lazy.lua
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not (vim.uv or vim.loop).fs_stat(lazypath) then
+  local lazyrepo = "https://github.com/folke/lazy.nvim.git"
+  vim.fn.system({ "git", "clone", "--filter=blob:none", "--branch=stable", lazyrepo, lazypath })
+end
+vim.opt.rtp:prepend(lazypath)
+require("lazy").setup({
+  spec = {
+    { "LazyVim/LazyVim", import = "lazyvim.plugins" },
+    { import = "lazyvim.plugins.extras.lang.go" },
+    { import = "lazyvim.plugins.extras.lang.markdown" },
+    { import = "lazyvim.plugins.extras.lang.svelte" },
+    { import = "plugins" },
+  },
+  defaults = { lazy = false, version = false },
+  install = { colorscheme = { "tokyonight" } },
+})
+EOF
+
+echo "⚙️  Configuring Neovim options..."
+cat <<'EOF' >~/.config/nvim/lua/config/options.lua
+-- Disable swap files completely to prevent E325 errors
+vim.opt.swapfile = false
+
+-- Broadcast the current file/project to the Alacritty window title
+vim.opt.title = true
+EOF
+
+cat <<'EOF' >~/.config/nvim/lua/plugins/treesitter.lua
+return {
+  "nvim-treesitter/nvim-treesitter",
+  opts = function(_, opts)
+    if type(opts.ensure_installed) == "table" then
+      vim.list_extend(opts.ensure_installed, { 
+        "css", "html", "javascript", "typescript", "json",
+        "go", "gomod", "gowork", "gosum", 
+        "terraform", "hcl",
+        "svelte"
+      })
+    end
+
+    -- FIX: Disable Tree-sitter highlighting for Terraform/HCL to prevent UI freezes
+    -- on complex Heredoc string interpolations. Falls back to standard regex highlighting.
+    opts.highlight = opts.highlight or {}
+    local prev_disable = opts.highlight.disable
+    opts.highlight.disable = function(lang, buf)
+      if lang == "terraform" or lang == "hcl" then
+        return true
+      end
+      if type(prev_disable) == "function" then
+        return prev_disable(lang, buf)
+      elseif type(prev_disable) == "table" then
+        for _, disabled_lang in ipairs(prev_disable) do
+          if lang == disabled_lang then return true end
+        end
+      end
+      return false
+    end
+  end,
+}
+EOF
+
+cat <<'EOF' >~/.config/nvim/lua/plugins/lsp.lua
+return {
+  "neovim/nvim-lspconfig",
+  opts = { 
+    servers = { 
+      biome = {}, 
+      gopls = {}, 
+      svelte = {},
+      terraformls = {
+        -- Force Neovim to use the tofu-ls binary symlinked in ~/.local/bin
+        cmd = { "terraform-ls", "serve" },
+        filetypes = { "terraform", "terraform-vars", "hcl" },
+      }
+    },
+    setup = {
+      terraformls = function()
+        -- Return true to completely bypass Mason for this LSP
+        return true
+      end,
+    }
+  }
+}
+EOF
+
+cat <<'EOF' >~/.config/nvim/lua/plugins/formatting.lua
+return {
+  "stevearc/conform.nvim",
+  opts = {
+    formatters_by_ft = {
+      go = { "goimports", "gofmt" },
+      terraform = { "terraform_fmt" },
+      tf = { "terraform_fmt" },
+      ["terraform-vars"] = { "terraform_fmt" },
+      javascript = { "biome" },
+      typescript = { "biome" },
+      javascriptreact = { "biome" },
+      typescriptreact = { "biome" },
+      css = { "biome" },
+      json = { "biome" },
+    },
+  },
+}
+EOF
+
+cat <<'EOF' >~/.config/nvim/lua/plugins/theme.lua
+return {
+  { "folke/tokyonight.nvim", lazy = false, priority = 1000, opts = { style = "night" } },
+  { "LazyVim/LazyVim", opts = { colorscheme = "tokyonight" } },
+}
+EOF
+
+echo "⚙️  Disabling smooth scrolling animations..."
+cat <<'EOF' >~/.config/nvim/lua/plugins/ui.lua
+return {
+  -- Disable mini.animate (used in older LazyVim versions)
+  { "nvim-mini/mini.animate", enabled = false },
+  
+  -- Disable Snacks smooth scroll (used in newer LazyVim versions)
+  {
+    "folke/snacks.nvim",
+    opts = {
+      scroll = { enabled = false },
+    }
+  }
+}
+EOF
+
+echo "⌨️  Injecting 'jk' escape shortcut into Neovim..."
+cat <<'EOF' >~/.config/nvim/lua/config/keymaps.lua
+-- Press jk fast to exit insert mode 
+vim.keymap.set("i", "jk", "<esc>", { desc = "Exit insert mode" })
+EOF
+
+echo "⚙️  Injecting safety overrides for Terraform files..."
+cat <<'EOF' >~/.config/nvim/lua/config/autocmds.lua
+-- Disable aggressive visual scanners for Terraform/HCL files to prevent lockups on complex Heredocs
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "terraform", "terraform-vars", "hcl" },
+  callback = function()
+    vim.b.miniindentscope_disable = true
+    vim.cmd("NoMatchParen")
+  end,
+})
+EOF
+
+# ------------------------------------------------------------------------------
+# 6. HEADLESS PLUGIN SYNC
+# ------------------------------------------------------------------------------
+echo "⚙️  Syncing Neovim Plugins and Parsers..."
+export PATH="$BIN_DIR:$HOME/.local/node/bin:$PATH"
+
+nvim --headless "+Lazy! sync" +qa
+TS_LUA="require('lazy').load({plugins={'nvim-treesitter'}}); require('nvim-treesitter.install').update({with_sync=true}); vim.cmd('qa')"
+nvim --headless -c "lua $TS_LUA"
+
+echo "=============================================================================="
+echo "🎉 Secure IDE environment is synced and ready!"
+echo "=============================================================================="
+
+      ]]>
+    </file>
+    <file path="scripts/hog-uninstall.sh">
+      <![CDATA[
+#!/bin/bash
+# Uninstaller for Global Git Hooks & TruffleHog Configuration
+
+set -euo pipefail
+
+HOOKS_DIR="$HOME/.git-hooks"
+
+echo "🗑️  Uninstalling global TruffleHog Git hooks and configurations..."
+echo "────────────────────────────────────────────────────────"
+
+echo "➡️  Restoring Git configuration..."
+if git config --global --get core.hooksPath >/dev/null 2>&1; then
+  git config --global --unset core.hooksPath
+  echo "   ✅ Global 'core.hooksPath' has been unset."
+else
+  echo "   ⚪ Global 'core.hooksPath' was not set. Skipping."
+fi
+
+echo "➡️  Removing hooks directory..."
+if [ -d "$HOOKS_DIR" ]; then
+  rm -rf "$HOOKS_DIR"
+  echo "   ✅ Directory '$HOOKS_DIR' has been deleted."
+else
+  echo "   ⚪ Directory '$HOOKS_DIR' not found. Skipping."
+fi
+
+echo "────────────────────────────────────────────────────────"
+echo "✅ Uninstallation complete. Git is now using default local hooks."
+
+      ]]>
+    </file>
+    <file path="scripts/check-updates.sh">
+      <![CDATA[
+#!/bin/bash
+set -euo pipefail
+
+RECEIPTS_FILE="$HOME/.local/.ide_receipts"
+
+echo "🔍 Reading local state from $RECEIPTS_FILE..."
+echo "----------------------------------------------------"
+
+if [ ! -f "$RECEIPTS_FILE" ]; then
+  echo "❌ No receipts file found at $RECEIPTS_FILE. Have you run the bootstrap script yet?"
+  exit 1
+fi
+
+# ==============================================================================
+# 1. HELPER FUNCTIONS
+# ==============================================================================
+
+# Wrapper for GitHub API calls with a 1-hour ephemeral local cache
+github_curl() {
+  local full_url="$1"
+
+  # Create a safe, unique filename from the URL for the cache
+  local cache_key
+  cache_key=$(echo "$full_url" | sed 's/[^a-zA-Z0-9]/_/g')
+  local cache_file="/tmp/substrate_cache_${cache_key}.json"
+
+  # If cache exists, check its age
+  if [ -f "$cache_file" ]; then
+    local current_time
+    current_time=$(date +%s)
+
+    local file_time
+    # macOS BSD stat command to get file modification time in seconds
+    file_time=$(stat -f "%m" "$cache_file" 2>/dev/null)
+
+    if [ -n "$file_time" ]; then
+      local age_seconds=$((current_time - file_time))
+      # If the cache is less than 60 minutes (3600 seconds) old, use it
+      if [ "$age_seconds" -lt 3600 ]; then
+        cat "$cache_file"
+        return
+      fi
+    fi
+  fi
+
+  # Cache is missing or stale. Fetch fresh data from GitHub.
+  local response
+  response=$(curl --proto '=https' --tlsv1.2 -sSL "$full_url" || true)
+
+  # Only write to the cache if GitHub gave us a valid response (not a rate limit error)
+  if echo "$response" | grep -q '"tag_name"'; then
+    echo "$response" >"$cache_file"
+  fi
+
+  echo "$response"
+}
+
+# Calculate human-readable age from ISO 8601 timestamp and colorize it
+format_age() {
+  local release_date_iso="$1"
+  if [ -z "$release_date_iso" ]; then
+    echo ""
+    return
+  fi
+
+  local release_epoch
+  # macOS (BSD date) parsing
+  if ! release_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$release_date_iso" "+%s" 2>/dev/null); then
+    echo ""
+    return
+  fi
+
+  local current_epoch
+  current_epoch=$(date "+%s")
+
+  local diff_seconds=$((current_epoch - release_epoch))
+  local diff_days=$((diff_seconds / 86400))
+
+  local RED='\033[0;31m'
+  local GREEN='\033[0;32m'
+  local NC='\033[0m' # No Color
+  local color_code=""
+
+  if [ "$diff_seconds" -lt 86400 ]; then
+    color_code="${RED}"
+  else
+    color_code="${GREEN}"
+  fi
+  if [ "$diff_days" -eq 0 ]; then
+    echo -e "${color_code}(Released today)${NC}"
+  elif [ "$diff_days" -lt 30 ]; then
+    local day_str="days"
+    [ "$diff_days" -eq 1 ] && day_str="day"
+    echo -e "${color_code}(Released $diff_days $day_str ago)${NC}"
+  elif [ "$diff_days" -lt 365 ]; then
+    local months=$((diff_days / 30))
+    local month_str="months"
+    [ "$months" -eq 1 ] && month_str="month"
+    echo -e "${color_code}(Released $months $month_str ago)${NC}"
+  else
+    local years=$((diff_days / 365))
+    local year_str="years"
+    [ "$years" -eq 1 ] && year_str="year"
+    echo -e "${color_code}(Released $years $year_str ago)${NC}"
+  fi
+}
+
+# Extract the currently installed version from the ledger and sanitize it
+get_local_version() {
+  local tool_name="$1"
+  # Grabs the right side of the '=', then deletes everything EXCEPT letters, numbers, dots, hyphens, and underscores
+  grep "^${tool_name}=" "$RECEIPTS_FILE" | head -n 1 | cut -d'=' -f2 | tr -cd '[:alnum:]_.-' || true
+}
+
+# Check standard GitHub repositories
+check_github() {
+  local tool_name="$1"
+  local repo="$2"
+
+  local current_version
+  current_version=$(get_local_version "$tool_name")
+
+  if [ -z "$current_version" ]; then
+    echo "⏭️  $tool_name: Not found in receipts (Not installed)."
+    return
+  fi
+
+  # Fetch the JSON response via our caching wrapper
+  local api_response
+  api_response=$(github_curl "https://api.github.com/repos/$repo/releases/latest")
+
+  # Extract tag and date (Immune to minified JSON)
+  local latest_version
+  latest_version=$(echo "$api_response" | grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed -E 's/"tag_name": *"([^"]+)"/\1/' || true)
+
+  local published_at
+  published_at=$(echo "$api_response" | grep -o '"published_at": *"[^"]*"' | head -n 1 | sed -E 's/"published_at": *"([^"]+)"/\1/' || true)
+
+  local age_str=""
+  if [ -n "$published_at" ]; then
+    age_str=$(format_age "$published_at")
+  fi
+
+  if [ -z "$latest_version" ]; then
+    echo "⚠️  $tool_name: Failed to fetch latest version from GitHub."
+    return
+  fi
+
+  # ✨ SMART ALIGNMENT: If local version lacks a 'v' but GitHub has one, strip the 'v' from GitHub's tag
+  if [[ ! "$current_version" == v* ]] && [[ "$latest_version" == v* ]]; then
+    latest_version="${latest_version#v}"
+  fi
+
+  if [ "$current_version" != "$latest_version" ]; then
+    echo -e "🚨 UPDATE AVAILABLE: $tool_name (Current: $current_version -> Latest: $latest_version) $age_str"
+    if [[ ! "$latest_version" == v* ]]; then
+      echo "   👉 https://github.com/$repo/releases/tag/v$latest_version"
+    else
+      echo "   👉 https://github.com/$repo/releases/tag/$latest_version"
+    fi
+  else
+    echo -e "✅ $tool_name is up-to-date ($current_version) $age_str"
+  fi
+}
+
+# Check basic custom JSON endpoints (Go, Node)
+check_custom_api() {
+  local tool_name="$1"
+  local latest_version="$2"
+  local age_str="${3:-}"
+  local current_version
+
+  current_version=$(get_local_version "$tool_name")
+
+  if [ -z "$current_version" ]; then
+    echo "⏭️  $tool_name: Not found in receipts."
+    return
+  fi
+
+  if [ -z "$latest_version" ]; then
+    echo "⚠️  $tool_name: Failed to fetch latest version."
+    return
+  fi
+
+  if [ "$current_version" != "$latest_version" ]; then
+    echo -e "🚨 UPDATE AVAILABLE: $tool_name (Current: $current_version -> Latest: $latest_version) $age_str"
+  else
+    echo -e "✅ $tool_name is up-to-date ($current_version) $age_str"
+  fi
+}
+
+# Check NPM Registry for composite pnpm & biome receipt
+check_npm_packages() {
+  local receipt_val
+  receipt_val=$(get_local_version "NPM_Packages")
+
+  if [ -z "$receipt_val" ]; then
+    echo "⏭️  NPM_Packages: Not found in receipts."
+    return
+  fi
+
+  # Split the composite string
+  local current_pnpm="${receipt_val%_*}"
+  local current_biome="${receipt_val#*_}"
+
+  local NPM_BIN="$HOME/.local/bin/npm"
+  if [ ! -x "$NPM_BIN" ]; then
+    NPM_BIN="npm"
+  fi
+
+  local latest_pnpm
+  latest_pnpm=$("$NPM_BIN" view pnpm version 2>/dev/null || true)
+
+  local pnpm_time
+  pnpm_time=$("$NPM_BIN" view pnpm time --json 2>/dev/null | grep "\"$latest_pnpm\":" | head -n 1 | cut -d'"' -f4 | cut -c1-19 || true)
+
+  local pnpm_age=""
+  if [ -n "$pnpm_time" ]; then
+    pnpm_age=$(format_age "${pnpm_time}Z")
+  fi
+
+  local latest_biome
+  latest_biome=$("$NPM_BIN" view @biomejs/biome version 2>/dev/null || true)
+
+  local biome_time
+  biome_time=$("$NPM_BIN" view @biomejs/biome time --json 2>/dev/null | grep "\"$latest_biome\":" | head -n 1 | cut -d'"' -f4 | cut -c1-19 || true)
+
+  local biome_age=""
+  if [ -n "$biome_time" ]; then
+    biome_age=$(format_age "${biome_time}Z")
+  fi
+
+  if [ -n "$latest_pnpm" ]; then
+    if [ "$current_pnpm" != "$latest_pnpm" ]; then
+      echo -e "🚨 UPDATE AVAILABLE: pnpm (Current: $current_pnpm -> Latest: $latest_pnpm) $pnpm_age"
+    else
+      echo -e "✅ pnpm is up-to-date ($current_pnpm) $pnpm_age"
+    fi
+  else
+    echo "⚠️  pnpm: Failed to fetch latest version."
+  fi
+
+  if [ -n "$latest_biome" ]; then
+    if [ "$current_biome" != "$latest_biome" ]; then
+      echo -e "🚨 UPDATE AVAILABLE: biome (Current: $current_biome -> Latest: $latest_biome) $biome_age"
+    else
+      echo -e "✅ biome is up-to-date ($current_biome) $biome_age"
+    fi
+  else
+    echo "⚠️  biome: Failed to fetch latest version."
+  fi
+}
+
+# Check Google Cloud SDK manifest
+check_gcloud() {
+  local current_version
+  current_version=$(get_local_version "Gcloud")
+
+  if [ -z "$current_version" ]; then
+    echo "⏭️  Gcloud: Not found in receipts."
+    return
+  fi
+
+  local latest_version
+  latest_version=$(curl --proto '=https' --tlsv1.2 -sSL "https://dl.google.com/dl/cloudsdk/channels/rapid/components-2.json" |
+    grep -o '"version": "[^"]*"' | head -n 1 | sed -E 's/"version": "([^"]+)"/\1/' || true)
+
+  if [ -z "$latest_version" ]; then
+    echo "⚠️  Gcloud: Failed to fetch latest version."
+    return
+  fi
+
+  if [ "$current_version" != "$latest_version" ]; then
+    echo -e "🚨 UPDATE AVAILABLE: Gcloud (Current: $current_version -> Latest: $latest_version)"
+    echo "   👉 https://cloud.google.com/sdk/docs/downloads-versioned-archives"
+  else
+    echo -e "✅ Gcloud is up-to-date ($current_version)"
+  fi
+}
+
+# Check OpenTofu & OpenTofu LS composite receipt
+check_opentofu() {
+  local receipt_val
+  receipt_val=$(get_local_version "OpenTofu")
+
+  if [ -z "$receipt_val" ]; then
+    echo "⏭️  OpenTofu: Not found in receipts."
+    return
+  fi
+
+  local current_tofu="${receipt_val%_*}"
+  local current_tofuls="${receipt_val#*_}"
+
+  local tofu_response
+  tofu_response=$(github_curl "https://api.github.com/repos/opentofu/opentofu/releases/latest")
+  local latest_tofu=$(echo "$tofu_response" | grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed -E 's/"tag_name": *"v?([^"]+)"/\1/' || true)
+  local tofu_date=$(echo "$tofu_response" | grep -o '"published_at": *"[^"]*"' | head -n 1 | sed -E 's/"published_at": *"([^"]+)"/\1/' || true)
+  local tofu_age=$(format_age "$tofu_date")
+
+  local tofuls_response
+  tofuls_response=$(github_curl "https://api.github.com/repos/opentofu/tofu-ls/releases/latest")
+  local latest_tofuls=$(echo "$tofuls_response" | grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed -E 's/"tag_name": *"v?([^"]+)"/\1/' || true)
+  local tofuls_date=$(echo "$tofuls_response" | grep -o '"published_at": *"[^"]*"' | head -n 1 | sed -E 's/"published_at": *"([^"]+)"/\1/' || true)
+  local tofuls_age=$(format_age "$tofuls_date")
+
+  if [ -n "$latest_tofu" ]; then
+    if [ "$current_tofu" != "$latest_tofu" ]; then
+      echo -e "🚨 UPDATE AVAILABLE: OpenTofu (Current: $current_tofu -> Latest: $latest_tofu) $tofu_age"
+      echo "   👉 https://github.com/opentofu/opentofu/releases/tag/v$latest_tofu"
+    else
+      echo -e "✅ OpenTofu is up-to-date ($current_tofu) $tofu_age"
+    fi
+  else
+    echo "⚠️  OpenTofu: Failed to fetch latest version."
+  fi
+
+  if [ -n "$latest_tofuls" ]; then
+    if [ "$current_tofuls" != "$latest_tofuls" ]; then
+      echo -e "🚨 UPDATE AVAILABLE: OpenTofu LS (Current: $current_tofuls -> Latest: $latest_tofuls) $tofuls_age"
+      echo "   👉 https://github.com/opentofu/tofu-ls/releases/tag/v$latest_tofuls"
+    else
+      echo -e "✅ OpenTofu LS is up-to-date ($current_tofuls) $tofuls_age"
+    fi
+  else
+    echo "⚠️  OpenTofu LS: Failed to fetch latest version."
+  fi
+}
+
+# Check Go module proxy
+check_go_pkg() {
+  local tool_name="$1"
+  local module_path="$2"
+  local current_version
+
+  current_version=$(get_local_version "$tool_name")
+
+  if [ -z "$current_version" ]; then
+    echo "⏭️  $tool_name: Not found in receipts."
+    return
+  fi
+
+  local api_response
+  api_response=$(curl --proto '=https' --tlsv1.2 -sSL "https://proxy.golang.org/${module_path}/@latest" || true)
+
+  local latest_version
+  latest_version=$(echo "$api_response" | grep -o '"Version":"[^"]*"' | sed -E 's/"Version":"([^"]+)"/\1/' || true)
+
+  local pkg_time
+  pkg_time=$(echo "$api_response" | grep -o '"Time":"[^"]*"' | sed -E 's/"Time":"([^"]+)"/\1/' || true)
+
+  local pkg_age=""
+  if [ -n "$pkg_time" ]; then
+    pkg_age=$(format_age "$pkg_time")
+  fi
+
+  if [ -z "$latest_version" ]; then
+    echo "⚠️  $tool_name: Failed to fetch latest version."
+    return
+  fi
+
+  if [ "$current_version" != "$latest_version" ]; then
+    echo -e "🚨 UPDATE AVAILABLE: $tool_name (Current: $current_version -> Latest: $latest_version) $pkg_age"
+  else
+    echo -e "✅ $tool_name is up-to-date ($current_version) $pkg_age"
+  fi
+}
+
+# ==============================================================================
+# 2. EXECUTE CHECKS
+# ==============================================================================
+
+echo "--- Virtualization & Infrastructure ---"
+check_github "Colima" "abiosoft/colima"
+check_github "Lima" "lima-vm/lima"
+check_gcloud
+check_opentofu
+
+echo -e "\n--- Core Applications ---"
+check_github "Alacritty" "alacritty/alacritty"
+check_github "JetBrainsMono" "ryanoasis/nerd-fonts"
+check_github "Neovim" "neovim/neovim"
+
+echo -e "\n--- Languages & Environments ---"
+LATEST_GO=$(curl --proto '=https' --tlsv1.2 -sSL "https://go.dev/dl/?mode=json" | grep -o '"version": "[^"]*"' | head -n 1 | sed -E 's/"version": "go([^"]+)"/\1/' || true)
+check_custom_api "Go" "$LATEST_GO"
+
+NODE_INFO=$(curl --proto '=https' --tlsv1.2 -sSL "https://nodejs.org/dist/index.tab" | awk 'NR>1 && $10!="-" && !found {print $1, $2; found=1}' || true)
+LATEST_NODE=$(echo "$NODE_INFO" | awk '{print $1}' || true)
+NODE_DATE=$(echo "$NODE_INFO" | awk '{print $2}' || true)
+NODE_AGE=""
+if [ -n "$NODE_DATE" ]; then
+  NODE_AGE=$(format_age "${NODE_DATE}T00:00:00Z")
+fi
+
+check_custom_api "Node" "$LATEST_NODE" "$NODE_AGE"
+
+echo -e "\n--- CLI Utilities & Packages ---"
+check_github "Ripgrep" "BurntSushi/ripgrep"
+check_github "fd" "sharkdp/fd"
+check_github "Protoc" "protocolbuffers/protobuf"
+check_github "Lazygit" "jesseduffield/lazygit"
+check_github "Treesitter" "tree-sitter/tree-sitter"
+check_github "TruffleHog" "trufflesecurity/trufflehog"
+check_npm_packages
+check_go_pkg "Gopls" "golang.org/x/tools/gopls"
+check_go_pkg "Goimports" "golang.org/x/tools"
+check_go_pkg "Gopls" "golang.org/x/tools/gopls"
+check_go_pkg "Goimports" "golang.org/x/tools"
+check_go_pkg "Buf" "github.com/bufbuild/buf"
+check_go_pkg "Go_Generators" "google.golang.org/protobuf"
+
+echo "----------------------------------------------------"
+echo "🏁 Update check complete."
+
+      ]]>
+    </file>
+    <file path="scripts/consolidate.sh">
+      <![CDATA[
+#!/bin/bash
+# Used to consolidate a codebase into an LLM-optimized single XML file.
+# Automatically filters out binary files and common massive directories.
+
+# --- Configuration & Defaults ---
+OUTPUT_FILE="files-consolidated.xml"
+TARGET_DIRS=()
+SIZE_WARNING_THRESHOLD=500000 # ~125k-150k LLM tokens
+
+# Standard directories to always ignore (saves traversal time and tokens)
+EXCLUDE_DIRS=("node_modules" "dist" "build" "public" "vendor" "bin" "__pycache__" "venv" ".venv" ".next" "out")
+
+# Specific token-heavy/generated files that offer no logic value to LLMs
+EXCLUDE_FILES=("go.sum" "package-lock.json" "yarn.lock" "pnpm-lock.yaml" "poetry.lock" "*.tfstate" "*.tfstate.backup" "*.min.js" "*.min.css" "*.map" ".DS_Store")
+
+# --- Parse Arguments ---
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+  --output | -o)
+    OUTPUT_FILE="$2"
+    shift 2
+    ;;
+  -*)
+    echo "Unknown parameter passed: $1"
+    exit 1
+    ;;
+  *)
+    TARGET_DIRS+=("$1")
+    shift
+    ;;
+  esac
+done
+
+if [ -z "$OUTPUT_FILE" ]; then
+  OUTPUT_FILE="files-consolidated.xml"
+fi
+# Dynamically ignore the output file so we don't 'cat' it into itself
+EXCLUDE_FILES+=("$(basename "$OUTPUT_FILE")")
+
+if [ ${#TARGET_DIRS[@]} -gt 0 ]; then
+  SEARCH_BASE=("${TARGET_DIRS[@]}")
+else
+  SEARCH_BASE=(".")
+fi
+
+# --- Build Prune & Exclude Logic ---
+PRUNE_LOGIC=()
+
+# 1. Prune all hidden directories (e.g., .git, .idea, .vscode) but keep '.' and '..'
+PRUNE_LOGIC+=("-type" "d" "-name" ".*" "!" "-name" "." "!" "-name" ".." "-prune" "-o")
+
+# 2. Prune specific heavy directories
+for dir in "${EXCLUDE_DIRS[@]}"; do
+  PRUNE_LOGIC+=("-type" "d" "-name" "$dir" "-prune" "-o")
+done
+
+# 3. Prune specific ignored files
+for file in "${EXCLUDE_FILES[@]}"; do
+  PRUNE_LOGIC+=("-name" "$file" "-prune" "-o")
+done
+
+echo "🔍 Scanning: ${SEARCH_BASE[*]}"
+echo "📝 Output will be saved to: $OUTPUT_FILE"
+
+# --- Execute Find & Filter Binaries ---
+FILES=()
+while IFS= read -r -d '' file_path; do
+  # Check if the file is binary using its mime-encoding
+  # If it is NOT binary, add it to our array
+  if ! file -b --mime-encoding "$file_path" | grep -q "binary"; then
+    FILES+=("$file_path")
+  fi
+done < <(find "${SEARCH_BASE[@]}" "${PRUNE_LOGIC[@]}" -type f -print0 2>/dev/null)
+
+FILE_COUNT=${#FILES[@]}
+
+if [ "$FILE_COUNT" -eq 0 ]; then
+  echo "⚠️ No text files found matching the criteria."
+  exit 0
+fi
+
+echo "📦 Compiling $FILE_COUNT text file(s) into LLM context format..."
+
+# --- Write LLM Optimized Output ---
+# Ensure the destination directory exists before writing
+mkdir -p "$(dirname "$OUTPUT_FILE")" || {
+  echo "❌ FATAL: Could not create directory for $OUTPUT_FILE"
+  exit 1
+}
+>"$OUTPUT_FILE"
+
+cat <<'EOF' >>"$OUTPUT_FILE"
+<repository_context>
+  <system_instructions>
+    You are an expert software engineer and architect. Review the 'directory_structure' to understand the project architecture, then review the code in the 'files' section. 
+    
+    CRITICAL RULES:
+    1. NEVER output an entire file unless explicitly asked to do so.
+    2. When suggesting changes, ONLY output the specific blocks or lines that need modification.
+    3. Clearly state which file you are modifying and provide surrounding context (a few lines above and below).
+    4. Think step-by-step: Briefly explain your reasoning BEFORE writing code.
+    5. Be direct, concise, and professional.
+  </system_instructions>
+
+  <directory_structure>
+EOF
+
+# 1. Print Directory Index
+printf "%s\n" "${FILES[@]}" | sort | awk -F'/' '{
+  path=""
+  for(i=1; i<=NF; i++) {
+    path = path ? path"/"$i : $i
+    if (!seen[path]) {
+      seen[path]=1
+      indent=""
+      for(j=1; j<i; j++) indent = indent"  "
+      if (i == NF) {
+        print indent "- " $i
+      } else {
+        print indent "- " $i "/"
+      }
+    }
+  }
+}' >>"$OUTPUT_FILE"
+
+echo "  </directory_structure>" >>"$OUTPUT_FILE"
+echo "" >>"$OUTPUT_FILE"
+echo "  <files>" >>"$OUTPUT_FILE"
+
+# 2. Print File Contents inside CDATA blocks
+count=0
+
+for file_path in "${FILES[@]}"; do
+  ((count++))
+  display_path=${file_path#./}
+
+  echo -ne "\r⏳ Processing ($count/$FILE_COUNT): $display_path\033[K" >&2
+
+  # Wrap in XML and CDATA tags to prevent syntax characters from breaking the XML tree
+  echo "    <file path=\"$display_path\">" >>"$OUTPUT_FILE"
+  echo "      <![CDATA[" >>"$OUTPUT_FILE"
+
+  # Inject the raw file contents
+  cat "$file_path" >>"$OUTPUT_FILE"
+
+  # Ensure there is a newline before closing CDATA in case the file doesn't end with one
+  echo "" >>"$OUTPUT_FILE"
+  echo "      ]]>" >>"$OUTPUT_FILE"
+  echo "    </file>" >>"$OUTPUT_FILE"
+done
+
+echo -e "\n" >&2
+
+echo "  </files>" >>"$OUTPUT_FILE"
+echo "</repository_context>" >>"$OUTPUT_FILE"
+
+# --- Size Calculation & Warnings ---
+FILE_SIZE_BYTES=$(wc -c <"$OUTPUT_FILE" | tr -d ' ')
+FILE_SIZE_HUMAN=$(du -h "$OUTPUT_FILE" | cut -f1)
+ESTIMATED_TOKENS=$((FILE_SIZE_BYTES / 4))
+
+echo "✅ Process complete. Results saved to: $OUTPUT_FILE ($FILE_SIZE_HUMAN)"
+
+if [ "$FILE_SIZE_BYTES" -gt "$SIZE_WARNING_THRESHOLD" ]; then
+  echo "⚠️  WARNING: The generated file is quite large ($FILE_SIZE_HUMAN)."
+  echo "    This is roughly ~$ESTIMATED_TOKENS tokens. Ensure your LLM has an adequate context window!"
+fi
+
+# --- Automated Secret Scanning ---
+echo "🔍 Scanning consolidated file for secrets..."
+if command -v trufflehog &>/dev/null; then
+  if trufflehog filesystem "$OUTPUT_FILE" --fail; then
+    echo "✅ Clean: No secrets detected in $OUTPUT_FILE."
+  else
+    echo "🚨 FATAL: TruffleHog found potential secrets in $OUTPUT_FILE!"
+    echo "   Do NOT share this file with an LLM until you scrub the secrets from the source files and re-run this script."
+    exit 1
+  fi
+else
+  echo "⚠️  WARNING: TruffleHog binary not found in PATH. Skipping automated secret scan."
+  echo "   Please manually verify $OUTPUT_FILE for API keys and credentials before sharing."
+fi
+
+      ]]>
+    </file>
+    <file path="scripts/hog-setup.sh">
+      <![CDATA[
+#!/bin/bash
+#
+# Install automated secret scanning with TruffleHog (Local Binary) & Git Hooks.
+
+set -euo pipefail
+
+# --- Configuration ---
+HOOKS_DIR="$HOME/.git-hooks"
+PRE_COMMIT_FILE="$HOOKS_DIR/pre-commit"
+COMMIT_MSG_FILE="$HOOKS_DIR/commit-msg"
+EXCLUDE_FILE="$HOOKS_DIR/exclude-paths.txt"
+
+# --- Setup Directories ---
+echo "🚀 Setting up TruffleHog secret scanning..."
+mkdir -p "$HOOKS_DIR"
+
+# --- 1. Create Exclude File ---
+echo "📝 Creating exclude configuration..."
+cat >"$EXCLUDE_FILE" <<'EOF'
+node_modules/
+vendor/
+dist/
+build/
+\.git/
+package-lock\.json$
+pnpm-lock\.yaml$
+yarn\.lock$
+EOF
+
+# --- 2. Create Pre-Commit Hook (The Scanner) ---
+echo "🔨 Installing pre-commit hook..."
+cat >"$PRE_COMMIT_FILE" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+EXCLUDE_FILE="$HOME/.git-hooks/exclude-paths.txt"
+TRUFFLEHOG_BIN="$HOME/.local/bin/trufflehog"
+
+if [ ! -x "$TRUFFLEHOG_BIN" ]; then
+    echo "⚠️  WARNING: Local TruffleHog binary not found at $TRUFFLEHOG_BIN. Scan skipped." >&2
+    exit 0 
+fi
+
+if git diff --cached --quiet; then
+    exit 0
+fi
+
+echo "────────────────────────────────────────────────────────"
+echo "🚀 TruffleHog Pre-Commit Scan"
+echo "────────────────────────────────────────────────────────"
+echo "🔍 Scanning staged files..."
+
+# Use standard OS temp directory (much faster, no Docker mount constraints)
+TEMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TEMP_DIR"' EXIT
+
+git diff --cached --name-only -z --diff-filter=ACMR | git checkout-index --stdin -z --prefix="$TEMP_DIR/"
+
+SCAN_ARGS=("filesystem" "$TEMP_DIR" "--fail")
+
+if [ -f "$EXCLUDE_FILE" ]; then
+    echo "   (Using exclusions from global config)"
+    SCAN_ARGS+=("--exclude-paths=$EXCLUDE_FILE")
+fi
+
+if "$TRUFFLEHOG_BIN" "${SCAN_ARGS[@]}"; then
+    exit 0 
+else
+    echo "" >&2
+    echo "🚫 COMMIT REJECTED: Potential secrets found." >&2
+    echo "   Please remove the secret or address the finding and try again." >&2
+    exit 1
+fi
+EOF
+
+# --- 3. Create Commit-Msg Hook (The Trailer) ---
+echo "🔨 Installing commit-msg hook..."
+cat >"$COMMIT_MSG_FILE" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+MSG_FILE="$1"
+TRAILER="Secret-Scan: Passed"
+
+if grep -q "^$TRAILER" "$MSG_FILE"; then
+    exit 0
+fi
+
+echo "" >> "$MSG_FILE"
+echo "$TRAILER" >> "$MSG_FILE"
+EOF
+
+# --- Finalize ---
+chmod +x "$PRE_COMMIT_FILE"
+chmod +x "$COMMIT_MSG_FILE"
+git config --global core.hooksPath "$HOOKS_DIR"
+
+echo "✅ Success! Global hooks installed natively."
+
+      ]]>
+    </file>
+    <file path="uninstall-arm.sh">
+      <![CDATA[
+#!/bin/bash
+set -euo pipefail
+# ==============================================================================
+# ZERO-TRUST IDE TEARDOWN SCRIPT (macOS / Apple Silicon ARM64)
+# Completely removes all tools, caches, configs, ledgers, and VMs installed.
+# ==============================================================================
+
+echo "🧹 Initiating Zero-Trust IDE teardown..."
+echo "⚠️  WARNING: This will permanently delete your Colima containers, volumes, fonts, and Neovim configurations."
+read -p "Are you sure you want to proceed? (y/N): " confirm
+if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+  echo "🛑 Aborting uninstall."
+  exit 0
+fi
+
+LOCAL_DIR="$HOME/.local"
+BIN_DIR="$LOCAL_DIR/bin"
+CACHE_DIR="$HOME/.cache/ide-bootstrap"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ------------------------------------------------------------------------------
+# 1. REMOVE GLOBAL GIT HOOKS (TruffleHog)
+# ------------------------------------------------------------------------------
+echo "🛡️  Removing TruffleHog global Git hooks..."
+if [ -f "$SCRIPT_DIR/scripts/hog-uninstall.sh" ]; then
+  bash "$SCRIPT_DIR/scripts/hog-uninstall.sh"
+else
+  git config --global --unset core.hooksPath 2>/dev/null || true
+  rm -rf "$HOME/.git-hooks" "$HOME/.trufflehog-tmp"
+fi
+
+# ------------------------------------------------------------------------------
+# 2. STOP RUNNING SERVICES (Colima / Lima)
+# ------------------------------------------------------------------------------
+echo "🛑 Stopping Colima and Lima virtual machines..."
+if command -v colima &>/dev/null; then
+  colima stop --force 2>/dev/null || true
+fi
+if command -v limactl &>/dev/null; then
+  limactl stop --force colima 2>/dev/null || true
+fi
+
+# ------------------------------------------------------------------------------
+# 3. UNLOCK READ-ONLY DIRECTORIES & CLEAR CACHES
+# ------------------------------------------------------------------------------
+echo "🔓 Clearing Go module cache and unlocking read-only files..."
+
+# 1. Let Go natively handle its own stubborn read-only module cache BEFORE we delete Go
+if [ -x "$LOCAL_DIR/go/bin/go" ]; then
+  env GOPATH="$HOME/go" "$LOCAL_DIR/go/bin/go" clean -modcache 2>/dev/null || true
+elif command -v go &>/dev/null; then
+  go clean -modcache 2>/dev/null || true
+fi
+
+# 2. Add 'X' to chmod (capital X grants execute/traversal rights to directories)
+#    This acts as a failsafe for Go, and handles read-only Git objects in Neovim dirs.
+chmod -R u+rwX "$HOME/go" "$LOCAL_DIR/go" "$HOME/.config/nvim" "$HOME/.local/share/nvim" 2>/dev/null || true
+
+# ------------------------------------------------------------------------------
+# 4. REMOVE APPLICATION DIRECTORIES, CACHES & LEDGERS
+# ------------------------------------------------------------------------------
+echo "🗑️  Removing extracted application directories and ledgers..."
+rm -rf "$LOCAL_DIR/nvim-app"
+rm -rf "$LOCAL_DIR/google-cloud-sdk"
+rm -rf "$LOCAL_DIR/go"
+rm -rf "$HOME/go"        # Removes Go module cache and any user-installed Go binaries
+rm -rf "$LOCAL_DIR/node" # This automatically removes global Biome & npm packages
+rm -rf "$LOCAL_DIR/include/google"
+rm -rf "$CACHE_DIR"
+rm -f "$LOCAL_DIR/.ide_receipts" # Removes the smart-update ledger
+
+# ------------------------------------------------------------------------------
+# 5. REMOVE CONFIGURATIONS, STATE & VIRTUAL MACHINES
+# ------------------------------------------------------------------------------
+echo "🗑️  Removing configuration files, editor state, and VM data..."
+rm -rf "$HOME/.config/nvim"
+rm -rf "$HOME/.config/alacritty"
+rm -rf "$HOME/.local/share/nvim"
+rm -rf "$HOME/.local/state/nvim"
+rm -rf "$HOME/.cache/nvim"
+rm -rf "$HOME/.colima"
+rm -rf "$HOME/.lima"
+
+# ------------------------------------------------------------------------------
+# 6. REMOVE ALACRITTY APP
+# ------------------------------------------------------------------------------
+if [[ -d "/Applications/Alacritty.app" ]]; then
+  echo "🗑️  Removing Alacritty.app from System Applications (may prompt for password)..."
+  sudo rm -rf "/Applications/Alacritty.app" 2>/dev/null || true
+elif [[ -d "$HOME/Applications/Alacritty.app" ]]; then
+  echo "🗑️  Removing Alacritty.app from User Applications..."
+  rm -rf "$HOME/Applications/Alacritty.app"
+fi
+
+# ------------------------------------------------------------------------------
+# 8. REMOVE FONTS
+# ------------------------------------------------------------------------------
+echo "🔤 Removing JetBrains Mono Nerd Font..."
+rm -f "$HOME/Library/Fonts/JetBrainsMono"*.ttf
+rm -f "$HOME/Library/Fonts/JetBrainsMono"*.otf 2>/dev/null || true
+
+# ------------------------------------------------------------------------------
+# 9. SURGICALLY REMOVE BINARIES & SYMLINKS
+# ------------------------------------------------------------------------------
+echo "🗑️  Cleaning up ~/.local/bin..."
+# We explicitly target only the binaries, wrappers, and symlinks our script created.
+BINARIES_TO_REMOVE=(
+  "colima" "lima" "limactl" "docker" "docker-compose" "gcloud"
+  "go" "node" "npm" "npx" "pnpm" "pnpx" "nvim" "rg" "fd"
+  "lazygit" "tree-sitter" "tofu" "tofu-ls" "terraform" "terraform-ls"
+  "gopls" "goimports" "trufflehog" "govulnfix" "protoc"
+  "buf" "protoc-gen-go" "protoc-gen-connect-go" "protoc-gen-es" "ceph"
+)
+
+# Dynamically find and remove any symlinks we created from the scripts directory
+if [ -d "$SCRIPT_DIR/scripts" ]; then
+  for script in "$SCRIPT_DIR/scripts"/*.sh; do
+    if [ -f "$script" ]; then
+      BINARIES_TO_REMOVE+=("$(basename "$script" .sh)")
+    fi
+  done
+fi
+
+for bin in "${BINARIES_TO_REMOVE[@]}"; do
+  rm -f "$BIN_DIR/$bin"
+done
+
+# ------------------------------------------------------------------------------
+# 10. CLEAN UP ZSHRC
+# ------------------------------------------------------------------------------
+echo "📝 Cleaning up ~/.zshrc profile..."
+ZSHRC="$HOME/.zshrc"
+if [ -f "$ZSHRC" ]; then
+  # Use macOS compatible 'sed' (-i '') to delete the specific lines we injected
+  sed -i '' '/export PATH="$HOME\/.local\/bin:$PATH"/d' "$ZSHRC"
+  sed -i '' '/export PATH="$HOME\/.local\/node\/bin:$PATH"/d' "$ZSHRC"
+  sed -i '' '/export PATH="$PATH:$HOME\/go\/bin"/d' "$ZSHRC"
+fi
+
+echo "=============================================================================="
+echo "✅ Teardown complete! The Zero-Trust IDE has been completely removed."
+echo "👉 Note: Run 'source ~/.zshrc' or restart your terminal to clear the old environment variables."
+echo "=============================================================================="
+
+      ]]>
+    </file>
+    <file path="src/catalyst/go.mod">
+      <![CDATA[
+module catalyst
+
+go 1.26.5
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/package.json.tmpl">
+      <![CDATA[
+{
+  "name": "CEPHLODYNE_APP_NAME-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@bufbuild/protoc-gen-es": "^{{PROTOBUF_VERSION}}",
+    "@connectrpc/protoc-gen-connect-es": "^{{CONNECT_WEB_VERSION}}",
+    "@sveltejs/vite-plugin-svelte": "^6.2.0",
+    "svelte": "^{{SVELTE_VERSION}}",
+    "svelte-check": "^4.3.1",
+    "typescript": "^5.5.0",
+    "vite": "^{{VITE_VERSION}}"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^{{PROTOBUF_VERSION}}",
+    "@connectrpc/connect": "^{{CONNECT_WEB_VERSION}}",
+    "@connectrpc/connect-web": "^{{CONNECT_WEB_VERSION}}"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/.npmrc.tmpl">
+      <![CDATA[
+frozen-lockfile=true
+offline=true
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/index.html.tmpl">
+      <![CDATA[
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CEPHLODYNE_APP_NAME</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/src/vite.config.ts.tmpl">
+      <![CDATA[
+import { defineConfig, loadEnv } from 'vite'
+import { svelte } from '@sveltejs/vite-plugin-svelte'
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiPort = env.API_PORT || '8080'
+
+  return {
+    plugins: [svelte()],
+    server: {
+      proxy: {
+        '^/.*Service/.*': {
+          target: `http://127.0.0.1:${apiPort}`,
+          changeOrigin: true,
+        }
+      }
+    }
+  }
+})
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/src/App.svelte.tmpl">
+      <![CDATA[
+<script lang="ts">
+  import { onMount } from "svelte";
+  import { createPromiseClient } from "@connectrpc/connect";
+  import { createConnectTransport } from "@connectrpc/connect-web";
+  import { PingService } from "./gen/ping/v1/ping_pb";
+
+  const transport = createConnectTransport({ baseUrl: "" });
+  const client = createPromiseClient(PingService, transport);
+
+  let statusMessage = "Pinging Go backend...";
+
+  onMount(async () => {
+    try {
+      const response = await client.ping({ name: "Strata Crowd" });
+      statusMessage = response.message;
+    } catch (error) {
+      statusMessage = "API unreachable. Check terminal logs.";
+      console.error(error);
+    }
+  });
+</script>
+
+<main>
+  <h1>CEPHLODYNE_APP_NAME</h1>
+  <div class="card">
+    <h2>Backend Status:</h2>
+    <p><strong>{statusMessage}</strong></p>
+  </div>
+</main>
+
+<style>
+  main {
+    font-family: system-ui, sans-serif;
+    text-align: center;
+    padding: 2rem;
+  }
+  .card {
+    background: #f4f4f5;
+    padding: 1rem;
+    border-radius: 8px;
+    display: inline-block;
+  }
+</style>
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/src/svelte.config.js.tmpl">
+      <![CDATA[
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte'
+export default { preprocess: vitePreprocess() }
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/src/vite-env.d.ts.tmpl">
+      <![CDATA[
+/// <reference types="svelte" />
+/// <reference types="vite/client" />
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/src/main.ts.tmpl">
+      <![CDATA[
+import App from './App.svelte'
+
+const app = new App({
+  target: document.getElementById('app')!,
+})
+
+export default app
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/src/tsconfig.json.tmpl">
+      <![CDATA[
+{
+  "extends": "@tsconfig/svelte/tsconfig.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "checkJs": true,
+    "isolatedModules": true,
+    "moduleResolution": "bundler",
+    "strict": true,
+    "sourceMap": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
+}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/contracts/proto/ping/v1/ping.proto.tmpl">
+      <![CDATA[
+syntax = "proto3";
+package ping.v1;
+
+option go_package = "CEPHLODYNE_APP_NAME/internal/gen/ping/v1;pingv1";
+
+service PingService {
+  rpc Ping (PingRequest) returns (PingResponse) {}
+}
+
+message PingRequest {
+  string name = 1;
+}
+
+message PingResponse {
+  string message = 1;
+}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/contracts/proto/buf.yaml.tmpl">
+      <![CDATA[
+version: v1
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - DEFAULT
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/cmd/server/main.go.tmpl">
+      <![CDATA[
+package main
+
+import (
+	"embed"
+	"io/fs"
+	"net/http"
+
+	"github.com/cephlodyne/kit/ev"
+	"github.com/cephlodyne/kit/jot"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+
+	"CEPHLODYNE_APP_NAME/internal/ping"
+	pingv1connect "CEPHLODYNE_APP_NAME/internal/gen/ping/v1/pingv1connect"
+)
+
+//go:embed frontend/dist/*
+var embeddedFrontend embed.FS
+
+func main() {
+  // Initialize structured JSON logging for GCP
+	jot.AutoSetup()
+	port, err := ev.Get("API_PORT")
+	if err != nil {
+		port = "8080"
+	}
+
+	mux := http.NewServeMux()
+
+	pingPath, pingHandler := pingv1connect.NewPingServiceHandler(&ping.Server{})
+	mux.Handle(pingPath, pingHandler)
+
+	frontendFS, err := fs.Sub(embeddedFrontend, "frontend/dist")
+	if err != nil {
+		jot.Fatal("failed to load embedded frontend filesystem", err)
+	}
+	mux.Handle("/", http.FileServer(http.FS(frontendFS)))
+
+	h2s := &http2.Server{}
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: h2c.NewHandler(mux, h2s),
+	}
+
+	jot.Info("Starting CEPHLODYNE_APP_NAME server", "port", port)
+	if err := server.ListenAndServe(); err != nil {
+		jot.Fatal("Server crashed", err)
+	}
+}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/buf.gen.yaml.tmpl">
+      <![CDATA[
+version: v1
+managed:
+  enabled: true
+  go_package_prefix:
+    default: CEPHLODYNE_APP_NAME/internal/gen
+plugins:
+  - plugin: go
+    out: internal/gen
+    opt: paths=source_relative
+  - plugin: connect-go
+    out: internal/gen
+    opt: paths=source_relative
+  - plugin: es
+    path: frontend/node_modules/.bin/protoc-gen-es
+    out: frontend/src/gen
+    opt: target=ts
+  - plugin: connect-es
+    path: frontend/node_modules/.bin/protoc-gen-connect-es
+    out: frontend/src/gen
+    opt: target=ts
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/Dockerfile.tmpl">
+      <![CDATA[
+# syntax=docker/dockerfile:1.4
+ARG NODE_IMAGE=base-repo-node-builder:latest
+ARG GO_IMAGE=base-repo-go-builder:latest
+
+FROM ${NODE_IMAGE} AS frontend-builder
+WORKDIR /app/frontend
+RUN cp /deps/node-deps/svelte5-only/package.json ./package.json
+COPY ./frontend/ ./
+RUN pnpm install && pnpm build
+
+FROM ${GO_IMAGE} AS server-builder
+WORKDIR /go-server
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+COPY vendor/ ./vendor/
+COPY go.mod .
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags="-w -s" -o ./server ./cmd/server/main.go
+
+FROM scratch AS final
+WORKDIR /app
+COPY --from=server-builder /etc/passwd /etc/passwd
+COPY --from=server-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=server-builder /go-server/server ./server
+USER appuser
+CMD ["./server"]
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/Makefile.tmpl">
+      <![CDATA[
+-include .env
+export
+
+CONTRACTS_DIR ?= ../contracts
+
+.PHONY: generate build-frontend run dev
+
+generate:
+	@echo "Generating code from central contracts..."
+	buf generate $${CONTRACTS_DIR}/proto --template buf.gen.yaml
+
+build-frontend: generate
+	@echo "Installing and building frontend locally..."
+	cd frontend && pnpm install && pnpm build
+
+run: build-frontend
+	@echo "Tidying and vendoring Go dependencies..."
+	go mod tidy
+	go mod vendor
+	@echo "Starting production-like embedded server on port $${API_PORT}..."
+	go run ./cmd/server/main.go
+
+dev: generate
+	@echo "Tidying and vendoring Go dependencies..."
+	go mod tidy
+	go mod vendor
+	@echo "Ensuring frontend dist directory exists for go:embed..."
+	mkdir -p frontend/dist && touch frontend/dist/.keep
+	@echo "Starting rapid local development environment..."
+	@echo "Go API running on http://localhost:$${API_PORT}"
+	@bash -c "trap 'kill %1' SIGINT; go run -mod=vendor ./cmd/server/main.go & cd frontend && pnpm dev"
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/.dockerignore.tmpl">
+      <![CDATA[
+.env
+server
+bin/
+frontend/package.json
+frontend/pnpm-lock.yaml
+frontend/node_modules/
+frontend/dist/
+frontend/.svelte-kit/
+.DS_Store
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/.gitignore.tmpl">
+      <![CDATA[
+.env
+/server
+/bin/
+frontend/node_modules/
+frontend/dist/
+frontend/.svelte-kit/
+.DS_Store
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/internal/ping/ping.go.tmpl">
+      <![CDATA[
+package ping
+
+import (
+	"context"
+	"fmt"
+
+	"connectrpc.com/connect"
+	pingv1 "CEPHLODYNE_APP_NAME/internal/gen/ping/v1"
+)
+
+type Server struct{}
+
+func (s *Server) Ping(
+	ctx context.Context,
+	req *connect.Request[pingv1.PingRequest],
+) (*connect.Response[pingv1.PingResponse], error) {
+	
+	greeting := fmt.Sprintf("Hello %s, the mic-drop demo is a success!", req.Msg.Name)
+	
+	return connect.NewResponse(&pingv1.PingResponse{
+		Message: greeting,
+	}), nil
+}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/.env.tmpl">
+      <![CDATA[
+API_PORT={{API_PORT}}
+LOG_LEVEL=debug
+CONTRACTS_DIR=../contracts
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/.env.example.tmpl">
+      <![CDATA[
+# ==========================================
+# LOCAL DEVELOPMENT CONFIGURATION
+# Copy this file to .env and adjust as needed
+# ==========================================
+API_PORT={{API_PORT}}
+LOG_LEVEL=debug
+CONTRACTS_DIR=../CEPHLODYNE_APP_NAME-contracts
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/go.mod.tmpl">
+      <![CDATA[
+module CEPHLODYNE_APP_NAME
+
+go {{GO_VERSION}}
+
+require (
+	connectrpc.com/connect v{{CONNECT_GO_VERSION}}
+	github.com/cephlodyne/kit v{{KIT_VERSION}}
+	golang.org/x/net v0.24.0
+)
+
+      ]]>
+    </file>
+    <file path="src/catalyst/main.go">
+      <![CDATA[
+package main
+
+import (
+	"embed"
+	"flag"
+	"fmt"
+	"hash/fnv"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+// ==========================================
+// MASTER VERSIONS (V2 Modernized)
+// ==========================================
+const (
+	MasterGoVersion         = "1.26.4"
+	MasterSvelteVersion     = "5.38.10"
+	MasterViteVersion       = "7.1.5"
+	MasterProtobufVersion   = "2.2.3"
+	MasterConnectWebVersion = "1.7.0"
+	MasterConnectGoVersion  = "1.16.1"
+	MasterKitVersion        = "0.1.0"
+)
+
+//go:embed templates
+var templatesFS embed.FS
+
+func generatePort(appName string) string {
+	h := fnv.New32a()
+	h.Write([]byte(appName))
+	port := 8000 + (h.Sum32() % 1000)
+	return fmt.Sprintf("%d", port)
+}
+
+func main() {
+	initCmd := flag.NewFlagSet("init", flag.ExitOnError)
+	initType := initCmd.String("type", "", "Type ('external-web', 'internal-web', 'internal-api', 'contracts')")
+	initUI := initCmd.String("ui", "svelte", "Frontend framework ('svelte', 'react', 'vue')")
+
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: ceph init --type=<type> <module-name>")
+		os.Exit(1)
+	}
+
+	if os.Args[1] == "init" {
+		initCmd.Parse(os.Args[2:])
+		if initCmd.NArg() < 1 {
+			fmt.Println("Error: Must specify a module name (e.g., cws-external).")
+			os.Exit(1)
+		}
+
+		moduleName := initCmd.Arg(0)
+		appPort := generatePort(moduleName)
+
+		switch *initType {
+		case "external-web", "internal-web":
+			fmt.Printf("Scaffolding %s with %s UI for '%s' into current directory...\n", *initType, *initUI, moduleName)
+
+			backendPath := fmt.Sprintf("templates/backends/%s", *initType)
+			scaffoldTemplate(backendPath, ".", moduleName, appPort)
+
+			frontendPath := fmt.Sprintf("templates/frontends/%s", *initUI)
+			scaffoldTemplate(frontendPath, "./frontend", moduleName, appPort)
+
+			fmt.Println("Done. Run 'make dev' to start.")
+
+		case "internal-api":
+			fmt.Printf("Scaffolding headless %s for '%s' into current directory...\n", *initType, moduleName)
+			backendPath := fmt.Sprintf("templates/backends/%s", *initType)
+			scaffoldTemplate(backendPath, ".", moduleName, appPort)
+			fmt.Println("Done.")
+
+		case "contracts":
+			fmt.Printf("Scaffolding Contracts Repo '%s' into current directory...\n", moduleName)
+			scaffoldTemplate("templates/contracts", ".", moduleName, "")
+			fmt.Println("Done.")
+
+		default:
+			fmt.Println("Error: Unknown or missing --type.")
+			os.Exit(1)
+		}
+	}
+}
+
+func scaffoldTemplate(templatePath string, targetDir string, moduleName string, appPort string) {
+	err := fs.WalkDir(templatesFS, templatePath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, _ := filepath.Rel(templatePath, path)
+		destPath := filepath.Join(targetDir, strings.TrimSuffix(relPath, ".tmpl"))
+
+		if d.IsDir() {
+			return os.MkdirAll(destPath, 0755)
+		}
+
+		data, err := templatesFS.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		processed := string(data)
+		processed = strings.ReplaceAll(processed, "CEPHLODYNE_APP_NAME", moduleName)
+		processed = strings.ReplaceAll(processed, "{{API_PORT}}", appPort)
+		processed = strings.ReplaceAll(processed, "{{GO_VERSION}}", MasterGoVersion)
+		processed = strings.ReplaceAll(processed, "{{SVELTE_VERSION}}", MasterSvelteVersion)
+		processed = strings.ReplaceAll(processed, "{{VITE_VERSION}}", MasterViteVersion)
+		processed = strings.ReplaceAll(processed, "{{CONNECT_GO_VERSION}}", MasterConnectGoVersion)
+		processed = strings.ReplaceAll(processed, "{{CONNECT_WEB_VERSION}}", MasterConnectWebVersion)
+		processed = strings.ReplaceAll(processed, "{{PROTOBUF_VERSION}}", MasterProtobufVersion)
+		processed = strings.ReplaceAll(processed, "{{KIT_VERSION}}", MasterKitVersion)
+
+		return os.WriteFile(destPath, []byte(processed), 0644)
+	})
+
+	if err != nil {
+		fmt.Printf("Error scaffolding template %s: %v\n", templatePath, err)
+		os.Exit(1)
+	}
+}
+
+      ]]>
+    </file>
+    <file path="src/govulnfix/go.mod">
+      <![CDATA[
+module govulnfix
+
+go 1.26.3
+
+      ]]>
+    </file>
+    <file path="src/govulnfix/main.go">
+      <![CDATA[
+package main
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+)
+
+type Message struct {
+	OSV *struct {
+		ID      string `json:"id"`
+		Summary string `json:"summary"`
+		Details string `json:"details"`
+	} `json:"osv"`
+	Finding *struct {
+		OSV          string `json:"osv"`
+		FixedVersion string `json:"fixed_version"`
+		Trace        []struct {
+			Module string `json:"module"`
+		} `json:"trace"`
+	} `json:"finding"`
+}
+
+type OSVReport struct {
+	Summary string
+	Details string
+}
+
+// ModFix aggregates all vulnerabilities for a single module
+type ModFix struct {
+	FixedVersion string
+	VulnIDs      map[string]bool
+}
+
+func main() {
+	showDesc := flag.Bool("desc", false, "Show detailed vulnerability descriptions")
+	flag.Parse()
+
+	fmt.Println("🔄 Fetching the latest vulnerability database and scanner (govulncheck@latest)...")
+	installCmd := exec.Command("go", "install", "golang.org/x/vuln/cmd/govulncheck@latest")
+	installCmd.Stdout = os.Stdout
+	installCmd.Stderr = os.Stderr
+	if err := installCmd.Run(); err != nil {
+		fmt.Printf("❌ Failed to update govulncheck: %v\n", err)
+		fmt.Println("⚠️  Proceeding with cached version (if available)...")
+	}
+
+	fmt.Println("🔍 Running govulncheck... (this may take a moment)")
+	cmd := exec.Command("govulncheck", "-json", "./...")
+	out, _ := cmd.Output()
+
+	reports := make(map[string]OSVReport)
+	modulesToFix := make(map[string]*ModFix)
+
+	decoder := json.NewDecoder(bytes.NewReader(out))
+	for {
+		var msg Message
+		if err := decoder.Decode(&msg); err != nil {
+			break
+		}
+
+		if msg.OSV != nil {
+			reports[msg.OSV.ID] = OSVReport{
+				Summary: msg.OSV.Summary,
+				Details: msg.OSV.Details,
+			}
+		}
+
+		if msg.Finding != nil && len(msg.Finding.Trace) > 0 {
+			mod := msg.Finding.Trace[0].Module
+			if mod != "" && mod != "stdlib" {
+				if modulesToFix[mod] == nil {
+					modulesToFix[mod] = &ModFix{
+						FixedVersion: msg.Finding.FixedVersion,
+						VulnIDs:      make(map[string]bool),
+					}
+				}
+				// Ensure we capture a fixed version if the first finding lacked one
+				if modulesToFix[mod].FixedVersion == "" && msg.Finding.FixedVersion != "" {
+					modulesToFix[mod].FixedVersion = msg.Finding.FixedVersion
+				}
+				modulesToFix[mod].VulnIDs[msg.Finding.OSV] = true
+			}
+		}
+	}
+
+	if len(modulesToFix) == 0 {
+		fmt.Println("✅ No third-party vulnerabilities found!")
+		return
+	}
+
+	var mods []string
+	for m := range modulesToFix {
+		mods = append(mods, m)
+	}
+
+	fmt.Printf("\n⚠️  Found %d vulnerable modules:\n", len(mods))
+	fmt.Println(strings.Repeat("-", 80))
+
+	for i, m := range mods {
+		fix := modulesToFix[m]
+
+		if !*showDesc {
+			// Clean, aggregated output
+			fmt.Printf("[%d] %s (Fixes %d vulnerabilities -> update to %s)\n", i+1, m, len(fix.VulnIDs), fix.FixedVersion)
+		} else {
+			// Verbose output with full CVE descriptions
+			fmt.Printf("[%d] %s (Update to %s)\n", i+1, m, fix.FixedVersion)
+			for osvID := range fix.VulnIDs {
+				fmt.Printf("    ↳ %s\n", osvID)
+				rep := reports[osvID]
+				if rep.Summary != "" {
+					fmt.Printf("      Summary: %s\n", rep.Summary)
+				}
+				if rep.Details != "" {
+					desc := strings.ReplaceAll(rep.Details, "\n", "\n      ")
+					fmt.Printf("      Details: %s\n", desc)
+				}
+				fmt.Println()
+			}
+		}
+	}
+	fmt.Println(strings.Repeat("-", 80))
+
+	if !*showDesc {
+		fmt.Println("💡 Tip: Run 'govulnfix -desc' to see full vulnerability descriptions.")
+	}
+
+	fmt.Print("\nEnter numbers to fix (e.g., '1,3'), 'all' to fix all, or 'q' to quit: ")
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+
+	if input == "q" || input == "" {
+		fmt.Println("Aborted.")
+		return
+	}
+
+	var selectedMods []string
+	if input == "all" {
+		selectedMods = mods
+	} else {
+		for p := range strings.SplitSeq(input, ",") {
+			var idx int
+			if _, err := fmt.Sscanf(strings.TrimSpace(p), "%d", &idx); err == nil {
+				if idx > 0 && idx <= len(mods) {
+					selectedMods = append(selectedMods, mods[idx-1])
+				}
+			}
+		}
+	}
+
+	if len(selectedMods) == 0 {
+		fmt.Println("No valid selection made. Aborting.")
+		return
+	}
+
+	if len(selectedMods) == 0 {
+		fmt.Println("No valid selection made. Aborting.")
+		return
+	}
+
+	fmt.Println("\n🚀 Upgrading selected modules...")
+	args := []string{"get"}
+	for _, m := range selectedMods {
+		args = append(args, m+"@latest")
+	}
+	runCmd("go", args...)
+
+	fmt.Println("\n🧹 Cleaning up tracking files (go mod tidy)...")
+	runCmd("go", "mod", "tidy")
+
+	fmt.Println("\n📦 Rebuilding vendor fortress (go mod vendor)...")
+	runCmd("go", "mod", "vendor")
+
+	fmt.Println("\n✅ All done! Vulnerabilities patched and vendored.")
+}
+
+func runCmd(name string, args ...string) {
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("❌ Error running %s: %v\n", name, err)
+	}
+}
+
+      ]]>
+    </file>
+  </files>
+</repository_context>
+
+      ]]>
+    </file>
+    <file path="src/catalyst/go.mod">
+      <![CDATA[
+module catalyst
+
+go 1.26.5
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/package.json.tmpl">
+      <![CDATA[
+{
+  "name": "CEPHLODYNE_APP_NAME-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@bufbuild/protoc-gen-es": "^{{PROTOBUF_VERSION}}",
+    "@sveltejs/vite-plugin-svelte": "^6.2.0",
+    "@tsconfig/svelte": "^5.0.4",
+    "svelte": "^{{SVELTE_VERSION}}",
+    "svelte-check": "^4.3.1",
+    "typescript": "^5.5.0",
+    "vite": "^{{VITE_VERSION}}"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^{{PROTOBUF_VERSION}}",
+    "@connectrpc/connect": "^{{CONNECT_WEB_VERSION}}",
+    "@connectrpc/connect-web": "^{{CONNECT_WEB_VERSION}}"
+  }
+}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/vite.config.ts.tmpl">
+      <![CDATA[
+import { defineConfig, loadEnv } from 'vite'
+import { svelte } from '@sveltejs/vite-plugin-svelte'
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiPort = env.API_PORT || '8080'
+
+  return {
+    plugins: [svelte()],
+    clearScreen: false,
+    server: {
+      proxy: {
+        '^/.*Service/.*': {
+          target: `http://127.0.0.1:${apiPort}`,
+          changeOrigin: true,
+        }
+      }
+    }
+  }
+})
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/svelte.config.js.tmpl">
+      <![CDATA[
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte'
+export default { preprocess: vitePreprocess() }
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/index.html.tmpl">
+      <![CDATA[
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CEPHLODYNE_APP_NAME</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/embed.go.tmpl">
+      <![CDATA[
+package frontend
+
+import "embed"
+
+//go:embed all:dist
+var FS embed.FS
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/pnpm-workspace.yaml.tmpl">
+      <![CDATA[
+# Enforce offline mode
+offline: true
+
+# Manage lifecycle script execution securely
+allowBuilds:
+  esbuild: true
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/src/App.svelte.tmpl">
+      <![CDATA[
+<script lang="ts">
+  import { onMount } from "svelte";
+  import { createClient } from "@connectrpc/connect";
+  import { createConnectTransport } from "@connectrpc/connect-web";
+  import { PingService } from "./gen/ping/v1/ping_pb";
+
+  const transport = createConnectTransport({ baseUrl: "" });
+  const client = createClient(PingService, transport);
+
+  let statusMessage = "Pinging Go backend...";
+
+  onMount(async () => {
+    try {
+      const response = await client.ping({ name: "Strata Crowd" });
+      statusMessage = response.message;
+    } catch (error) {
+      statusMessage = "API unreachable. Check terminal logs.";
+      console.error(error);
+    }
+  });
+</script>
+
+<main>
+  <h1>CEPHLODYNE_APP_NAME</h1>
+  <div class="card">
+    <h2>Backend Status:</h2>
+    <p><strong>{statusMessage}</strong></p>
+  </div>
+</main>
+
+<style>
+  main {
+    font-family: system-ui, sans-serif;
+    text-align: center;
+    padding: 2rem;
+  }
+  .card {
+    background: #f4f4f5;
+    padding: 1rem;
+    border-radius: 8px;
+    display: inline-block;
+  }
+</style>
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/src/vite-env.d.ts.tmpl">
+      <![CDATA[
+/// <reference types="svelte" />
+/// <reference types="vite/client" />
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/src/main.ts.tmpl">
+      <![CDATA[
+import { mount } from 'svelte'
+import App from './App.svelte'
+
+const app = mount(App, {
+  target: document.getElementById('app')!,
+})
+
+export default app
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/svelte/tsconfig.json.tmpl">
+      <![CDATA[
+{
+  "extends": "@tsconfig/svelte/tsconfig.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "checkJs": true,
+    "isolatedModules": true,
+    "moduleResolution": "bundler",
+    "strict": true,
+    "sourceMap": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
+}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/contracts/proto/ping/v1/ping.proto.tmpl">
+      <![CDATA[
+syntax = "proto3";
+package ping.v1;
+
+option go_package = "CEPHLODYNE_APP_NAME/internal/gen/ping/v1;pingv1";
+
+service PingService {
+  rpc Ping (PingRequest) returns (PingResponse) {}
+}
+
+message PingRequest {
+  string name = 1;
+}
+
+message PingResponse {
+  string message = 1;
+}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/contracts/proto/buf.yaml.tmpl">
+      <![CDATA[
+version: v1
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - DEFAULT
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/cmd/server/main.go.tmpl">
+      <![CDATA[
+package main
+
+import (
+	"context"
+	"io/fs"
+	"net/http"
+	"os"
+
+	"github.com/cephlodyne/kit/ev"
+	"github.com/cephlodyne/kit/jot"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+
+	"CEPHLODYNE_APP_NAME/frontend"
+	"CEPHLODYNE_APP_NAME/internal/ping"
+	pingv1connect "CEPHLODYNE_APP_NAME/internal/gen/ping/v1/pingv1connect"
+)
+
+func main() {
+	ctx := context.Background()
+
+	// Initialize structured JSON logging for GCP
+	jot.AutoSetup()
+	
+	port, err := ev.Get("API_PORT")
+	if err != nil {
+		port = "8080"
+	}
+
+	mux := http.NewServeMux()
+
+	pingPath, pingHandler := pingv1connect.NewPingServiceHandler(&ping.Server{})
+	mux.Handle(pingPath, pingHandler)
+
+	// Pull the embedded filesystem directly from the frontend package
+	frontendFS, err := fs.Sub(frontend.FS, "dist")
+	if err != nil {
+		jot.CtxError(ctx, "failed to load embedded frontend filesystem", err)
+		os.Exit(1)
+	}
+	mux.Handle("/", http.FileServer(http.FS(frontendFS)))
+
+	h2s := &http2.Server{}
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: h2c.NewHandler(mux, h2s),
+	}
+
+	jot.CtxInfo(ctx, "Starting CEPHLODYNE_APP_NAME server", "port", port)
+	if err := server.ListenAndServe(); err != nil {
+		jot.CtxError(ctx, "Server crashed", err)
+		os.Exit(1)
+	}
+}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/buf.gen.yaml.tmpl">
+      <![CDATA[
+version: v1
+managed:
+  enabled: true
+  go_package_prefix:
+    default: CEPHLODYNE_APP_NAME/internal/gen
+plugins:
+  - plugin: go
+    out: internal/gen
+    opt: paths=source_relative
+  - plugin: connect-go
+    out: internal/gen
+    opt: paths=source_relative
+  - plugin: es
+    path: frontend/node_modules/.bin/protoc-gen-es
+    out: frontend/src/gen
+    opt: target=ts
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/Dockerfile.tmpl">
+      <![CDATA[
+# syntax=docker/dockerfile:1.4
+ARG NODE_IMAGE=base-repo-node-builder:latest
+ARG GO_IMAGE=base-repo-go-builder:latest
+
+FROM ${NODE_IMAGE} AS frontend-builder
+WORKDIR /app/frontend
+RUN cp /deps/node-deps/svelte5-only/package.json ./package.json
+COPY ./frontend/ ./
+RUN pnpm install && pnpm build
+
+FROM ${GO_IMAGE} AS server-builder
+WORKDIR /go-server
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+COPY frontend/embed.go ./frontend/embed.go
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+COPY vendor/ ./vendor/
+COPY go.mod .
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags="-w -s" -o ./server ./cmd/server/main.go
+
+FROM scratch AS final
+WORKDIR /app
+COPY --from=server-builder /etc/passwd /etc/passwd
+COPY --from=server-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=server-builder /go-server/server ./server
+USER appuser
+CMD ["./server"]
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/Makefile.tmpl">
+      <![CDATA[
+-include .env
+export
+
+CONTRACTS_DIR ?= {{CONTRACTS_DIR}}
+
+.PHONY: install-deps generate build-frontend run dev
+
+install-deps:
+	@echo "Installing frontend dependencies for code generation..."
+	cd frontend && pnpm install
+
+generate: install-deps
+	@echo "Generating code from central contracts..."
+	buf generate $${CONTRACTS_DIR}/proto --template buf.gen.yaml
+
+build-frontend: generate
+	@echo "Building frontend locally..."
+	cd frontend && pnpm build
+
+run: build-frontend
+	@echo "Tidying and vendoring Go dependencies..."
+	go mod tidy
+	go mod vendor
+	@echo "Ensuring frontend dist directory exists for go:embed..."
+	mkdir -p frontend/dist && echo "<!-- dev server placeholder -->" > frontend/dist/index.html
+	@echo "Starting production-like embedded server on port $${API_PORT}..."
+	go run ./cmd/server/main.go
+
+dev: generate
+	@echo "Tidying and vendoring Go dependencies..."
+	go mod tidy
+	go mod vendor
+	@echo "Ensuring frontend dist directory exists for go:embed..."
+	mkdir -p frontend/dist && echo "<!-- dev server placeholder -->" > frontend/dist/index.html
+	@echo "Starting rapid local development environment..."
+	@echo "Go API running on http://localhost:$${API_PORT}"
+	@bash -c "trap 'kill %1' SIGINT; go run -mod=vendor ./cmd/server/main.go & cd frontend && pnpm dev"
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/.dockerignore.tmpl">
+      <![CDATA[
+.env
+server
+bin/
+frontend/package.json
+frontend/pnpm-lock.yaml
+frontend/node_modules/
+frontend/dist/
+frontend/.svelte-kit/
+.DS_Store
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/.gitignore.tmpl">
+      <![CDATA[
+.env
+/server
+/bin/
+frontend/node_modules/
+frontend/dist/
+frontend/.svelte-kit/
+.DS_Store
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/internal/ping/ping.go.tmpl">
+      <![CDATA[
+package ping
+
+import (
+	"context"
+	"fmt"
+
+	"connectrpc.com/connect"
+	pingv1 "CEPHLODYNE_APP_NAME/internal/gen/ping/v1"
+)
+
+type Server struct{}
+
+func (s *Server) Ping(
+	ctx context.Context,
+	req *connect.Request[pingv1.PingRequest],
+) (*connect.Response[pingv1.PingResponse], error) {
+	
+	greeting := fmt.Sprintf("Hello %s, the mic-drop demo is a success!", req.Msg.Name)
+	
+	return connect.NewResponse(&pingv1.PingResponse{
+		Message: greeting,
+	}), nil
+}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/.env.tmpl">
+      <![CDATA[
+API_PORT={{API_PORT}}
+LOG_LEVEL=debug
+CONTRACTS_DIR={{CONTRACTS_DIR}}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/.env.example.tmpl">
+      <![CDATA[
+# ==========================================
+# LOCAL DEVELOPMENT CONFIGURATION
+# Copy this file to .env and adjust as needed
+# ==========================================
+API_PORT={{API_PORT}}
+LOG_LEVEL=debug
+CONTRACTS_DIR=../CEPHLODYNE_APP_NAME-contracts
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/backends/external-web/go.mod.tmpl">
+      <![CDATA[
+module CEPHLODYNE_APP_NAME
+
+go {{GO_VERSION}}
+
+require (
+	connectrpc.com/connect v{{CONNECT_GO_VERSION}}
+	github.com/cephlodyne/kit v{{KIT_VERSION}}
+	golang.org/x/net v0.24.0
+)
+
+      ]]>
+    </file>
+    <file path="src/catalyst/main.go">
+      <![CDATA[
+package main
+
+import (
+	"embed"
+	"flag"
+	"fmt"
+	"hash/fnv"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+// ==========================================
+// MASTER VERSIONS (V2 Modernized)
+// ==========================================
+const (
+	MasterGoVersion         = "1.26.4"
+	MasterSvelteVersion     = "5.38.10"
+	MasterViteVersion       = "7.1.5"
+	MasterProtobufVersion   = "2.12.1"
+	MasterConnectWebVersion = "2.1.2"
+	MasterConnectGoVersion  = "1.18.1"
+	MasterKitVersion        = "0.1.0"
+)
+
+//go:embed all:templates
+var templatesFS embed.FS
+
+func generatePort(appName string) string {
+	h := fnv.New32a()
+	h.Write([]byte(appName))
+	port := 8000 + (h.Sum32() % 1000)
+	return fmt.Sprintf("%d", port)
+}
+
+func main() {
+	initCmd := flag.NewFlagSet("init", flag.ExitOnError)
+	initType := initCmd.String("type", "", "Type ('external-web', 'internal-web', 'internal-api', 'contracts')")
+	initUI := initCmd.String("ui", "svelte", "Frontend framework ('svelte', 'react', 'vue')")
+	initContracts := initCmd.String("contracts", "../contracts", "Relative path to the protobuf contracts directory")
+
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: ceph init --type=<type> <module-name>")
+		os.Exit(1)
+	}
+
+	if os.Args[1] == "init" {
+		initCmd.Parse(os.Args[2:])
+		if initCmd.NArg() < 1 {
+			fmt.Println("Error: Must specify a module name (e.g., cws-external).")
+			os.Exit(1)
+		}
+
+		moduleName := initCmd.Arg(0)
+		appPort := generatePort(moduleName)
+
+		switch *initType {
+		case "external-web", "internal-web":
+			fmt.Printf("Scaffolding %s with %s UI for '%s' into current directory...\n", *initType, *initUI, moduleName)
+
+			backendPath := fmt.Sprintf("templates/backends/%s", *initType)
+			scaffoldTemplate(backendPath, ".", moduleName, appPort, *initContracts)
+
+			frontendPath := fmt.Sprintf("templates/frontends/%s", *initUI)
+			scaffoldTemplate(frontendPath, "./frontend", moduleName, appPort, *initContracts)
+
+			fmt.Println("Done. Run 'make dev' to start.")
+
+		case "internal-api":
+			fmt.Printf("Scaffolding headless %s for '%s' into current directory...\n", *initType, moduleName)
+			backendPath := fmt.Sprintf("templates/backends/%s", *initType)
+			scaffoldTemplate(backendPath, ".", moduleName, appPort, *initContracts)
+			fmt.Println("Done.")
+
+		case "contracts":
+			fmt.Printf("Scaffolding Contracts Repo '%s' into current directory...\n", moduleName)
+			scaffoldTemplate("templates/contracts", ".", moduleName, "", "")
+			fmt.Println("Done.")
+
+		default:
+			fmt.Println("Error: Unknown or missing --type.")
+			os.Exit(1)
+		}
+	}
+}
+
+func scaffoldTemplate(templatePath string, targetDir string, moduleName string, appPort string, contractsDir string) {
+	err := fs.WalkDir(templatesFS, templatePath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		// only process directories and .tmpl files
+		if !d.IsDir() && !strings.HasSuffix(d.Name(), ".tmpl") {
+			return nil // Skips .DS_Store, stray .env files, etc.
+		}
+		relPath, _ := filepath.Rel(templatePath, path)
+		destPath := filepath.Join(targetDir, strings.TrimSuffix(relPath, ".tmpl"))
+
+		if d.IsDir() {
+			return os.MkdirAll(destPath, 0755)
+		}
+
+		data, err := templatesFS.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		processed := string(data)
+		processed = strings.ReplaceAll(processed, "CEPHLODYNE_APP_NAME", moduleName)
+		processed = strings.ReplaceAll(processed, "{{API_PORT}}", appPort)
+		processed = strings.ReplaceAll(processed, "{{CONTRACTS_DIR}}", contractsDir)
+		processed = strings.ReplaceAll(processed, "{{GO_VERSION}}", MasterGoVersion)
+		processed = strings.ReplaceAll(processed, "{{SVELTE_VERSION}}", MasterSvelteVersion)
+		processed = strings.ReplaceAll(processed, "{{VITE_VERSION}}", MasterViteVersion)
+		processed = strings.ReplaceAll(processed, "{{CONNECT_GO_VERSION}}", MasterConnectGoVersion)
+		processed = strings.ReplaceAll(processed, "{{CONNECT_WEB_VERSION}}", MasterConnectWebVersion)
+		processed = strings.ReplaceAll(processed, "{{PROTOBUF_VERSION}}", MasterProtobufVersion)
+		processed = strings.ReplaceAll(processed, "{{KIT_VERSION}}", MasterKitVersion)
+
+		return os.WriteFile(destPath, []byte(processed), 0644)
+	})
+
+	if err != nil {
+		fmt.Printf("Error scaffolding template %s: %v\n", templatePath, err)
+		os.Exit(1)
+	}
+}
+
+      ]]>
+    </file>
+    <file path="src/govulnfix/go.mod">
+      <![CDATA[
+module govulnfix
+
+go 1.26.3
+
+      ]]>
+    </file>
+    <file path="src/govulnfix/main.go">
+      <![CDATA[
+package main
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+)
+
+type Message struct {
+	OSV *struct {
+		ID      string `json:"id"`
+		Summary string `json:"summary"`
+		Details string `json:"details"`
+	} `json:"osv"`
+	Finding *struct {
+		OSV          string `json:"osv"`
+		FixedVersion string `json:"fixed_version"`
+		Trace        []struct {
+			Module string `json:"module"`
+		} `json:"trace"`
+	} `json:"finding"`
+}
+
+type OSVReport struct {
+	Summary string
+	Details string
+}
+
+// ModFix aggregates all vulnerabilities for a single module
+type ModFix struct {
+	FixedVersion string
+	VulnIDs      map[string]bool
+}
+
+func main() {
+	showDesc := flag.Bool("desc", false, "Show detailed vulnerability descriptions")
+	flag.Parse()
+
+	fmt.Println("🔄 Fetching the latest vulnerability database and scanner (govulncheck@latest)...")
+	installCmd := exec.Command("go", "install", "golang.org/x/vuln/cmd/govulncheck@latest")
+	installCmd.Stdout = os.Stdout
+	installCmd.Stderr = os.Stderr
+	if err := installCmd.Run(); err != nil {
+		fmt.Printf("❌ Failed to update govulncheck: %v\n", err)
+		fmt.Println("⚠️  Proceeding with cached version (if available)...")
+	}
+
+	fmt.Println("🔍 Running govulncheck... (this may take a moment)")
+	cmd := exec.Command("govulncheck", "-json", "./...")
+	out, _ := cmd.Output()
+
+	reports := make(map[string]OSVReport)
+	modulesToFix := make(map[string]*ModFix)
+
+	decoder := json.NewDecoder(bytes.NewReader(out))
+	for {
+		var msg Message
+		if err := decoder.Decode(&msg); err != nil {
+			break
+		}
+
+		if msg.OSV != nil {
+			reports[msg.OSV.ID] = OSVReport{
+				Summary: msg.OSV.Summary,
+				Details: msg.OSV.Details,
+			}
+		}
+
+		if msg.Finding != nil && len(msg.Finding.Trace) > 0 {
+			mod := msg.Finding.Trace[0].Module
+			if mod != "" && mod != "stdlib" {
+				if modulesToFix[mod] == nil {
+					modulesToFix[mod] = &ModFix{
+						FixedVersion: msg.Finding.FixedVersion,
+						VulnIDs:      make(map[string]bool),
+					}
+				}
+				// Ensure we capture a fixed version if the first finding lacked one
+				if modulesToFix[mod].FixedVersion == "" && msg.Finding.FixedVersion != "" {
+					modulesToFix[mod].FixedVersion = msg.Finding.FixedVersion
+				}
+				modulesToFix[mod].VulnIDs[msg.Finding.OSV] = true
+			}
+		}
+	}
+
+	if len(modulesToFix) == 0 {
+		fmt.Println("✅ No third-party vulnerabilities found!")
+		return
+	}
+
+	var mods []string
+	for m := range modulesToFix {
+		mods = append(mods, m)
+	}
+
+	fmt.Printf("\n⚠️  Found %d vulnerable modules:\n", len(mods))
+	fmt.Println(strings.Repeat("-", 80))
+
+	for i, m := range mods {
+		fix := modulesToFix[m]
+
+		if !*showDesc {
+			// Clean, aggregated output
+			fmt.Printf("[%d] %s (Fixes %d vulnerabilities -> update to %s)\n", i+1, m, len(fix.VulnIDs), fix.FixedVersion)
+		} else {
+			// Verbose output with full CVE descriptions
+			fmt.Printf("[%d] %s (Update to %s)\n", i+1, m, fix.FixedVersion)
+			for osvID := range fix.VulnIDs {
+				fmt.Printf("    ↳ %s\n", osvID)
+				rep := reports[osvID]
+				if rep.Summary != "" {
+					fmt.Printf("      Summary: %s\n", rep.Summary)
+				}
+				if rep.Details != "" {
+					desc := strings.ReplaceAll(rep.Details, "\n", "\n      ")
+					fmt.Printf("      Details: %s\n", desc)
+				}
+				fmt.Println()
+			}
+		}
+	}
+	fmt.Println(strings.Repeat("-", 80))
+
+	if !*showDesc {
+		fmt.Println("💡 Tip: Run 'govulnfix -desc' to see full vulnerability descriptions.")
+	}
+
+	fmt.Print("\nEnter numbers to fix (e.g., '1,3'), 'all' to fix all, or 'q' to quit: ")
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+
+	if input == "q" || input == "" {
+		fmt.Println("Aborted.")
+		return
+	}
+
+	var selectedMods []string
+	if input == "all" {
+		selectedMods = mods
+	} else {
+		for p := range strings.SplitSeq(input, ",") {
+			var idx int
+			if _, err := fmt.Sscanf(strings.TrimSpace(p), "%d", &idx); err == nil {
+				if idx > 0 && idx <= len(mods) {
+					selectedMods = append(selectedMods, mods[idx-1])
+				}
+			}
+		}
+	}
+
+	if len(selectedMods) == 0 {
+		fmt.Println("No valid selection made. Aborting.")
+		return
+	}
+
+	if len(selectedMods) == 0 {
+		fmt.Println("No valid selection made. Aborting.")
+		return
+	}
+
+	fmt.Println("\n🚀 Upgrading selected modules...")
+	args := []string{"get"}
+	for _, m := range selectedMods {
+		args = append(args, m+"@latest")
+	}
+	runCmd("go", args...)
+
+	fmt.Println("\n🧹 Cleaning up tracking files (go mod tidy)...")
+	runCmd("go", "mod", "tidy")
+
+	fmt.Println("\n📦 Rebuilding vendor fortress (go mod vendor)...")
+	runCmd("go", "mod", "vendor")
+
+	fmt.Println("\n✅ All done! Vulnerabilities patched and vendored.")
+}
+
+func runCmd(name string, args ...string) {
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("❌ Error running %s: %v\n", name, err)
+	}
+}
+
+      ]]>
+    </file>
+  </files>
+</repository_context>
