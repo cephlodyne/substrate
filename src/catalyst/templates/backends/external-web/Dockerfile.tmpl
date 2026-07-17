@@ -11,6 +11,7 @@ RUN pnpm install && pnpm build
 FROM ${GO_IMAGE} AS server-builder
 WORKDIR /go-server
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+COPY frontend/embed.go ./frontend/embed.go
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 COPY vendor/ ./vendor/

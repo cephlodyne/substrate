@@ -1,22 +1,28 @@
 -include .env
 export
 
-CONTRACTS_DIR ?= ../contracts
+CONTRACTS_DIR ?= {{CONTRACTS_DIR}}
 
-.PHONY: generate build-frontend run dev
+.PHONY: install-deps generate build-frontend run dev
 
-generate:
+install-deps:
+	@echo "Installing frontend dependencies for code generation..."
+	cd frontend && pnpm install
+
+generate: install-deps
 	@echo "Generating code from central contracts..."
 	buf generate $${CONTRACTS_DIR}/proto --template buf.gen.yaml
 
 build-frontend: generate
-	@echo "Installing and building frontend locally..."
-	cd frontend && pnpm install && pnpm build
+	@echo "Building frontend locally..."
+	cd frontend && pnpm build
 
 run: build-frontend
 	@echo "Tidying and vendoring Go dependencies..."
 	go mod tidy
 	go mod vendor
+	@echo "Ensuring frontend dist directory exists for go:embed..."
+	mkdir -p frontend/dist && echo "<!-- dev server placeholder -->" > frontend/dist/index.html
 	@echo "Starting production-like embedded server on port $${API_PORT}..."
 	go run ./cmd/server/main.go
 
@@ -24,6 +30,8 @@ dev: generate
 	@echo "Tidying and vendoring Go dependencies..."
 	go mod tidy
 	go mod vendor
+	@echo "Ensuring frontend dist directory exists for go:embed..."
+	mkdir -p frontend/dist && echo "<!-- dev server placeholder -->" > frontend/dist/index.html
 	@echo "Starting rapid local development environment..."
 	@echo "Go API running on http://localhost:$${API_PORT}"
 	@bash -c "trap 'kill %1' SIGINT; go run -mod=vendor ./cmd/server/main.go & cd frontend && pnpm dev"

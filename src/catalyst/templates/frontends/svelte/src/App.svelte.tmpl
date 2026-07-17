@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { createPromiseClient } from "@connectrpc/connect";
+  import { createClient } from "@connectrpc/connect";
   import { createConnectTransport } from "@connectrpc/connect-web";
   import { PingService } from "./gen/ping/v1/ping_pb";
 
   const transport = createConnectTransport({ baseUrl: "" });
-  const client = createPromiseClient(PingService, transport);
+  const client = createClient(PingService, transport);
 
   let statusMessage = "Pinging Go backend...";
 

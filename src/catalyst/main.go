@@ -18,13 +18,13 @@ const (
 	MasterGoVersion         = "1.26.4"
 	MasterSvelteVersion     = "5.38.10"
 	MasterViteVersion       = "7.1.5"
-	MasterProtobufVersion   = "2.2.3"
-	MasterConnectWebVersion = "2.0.0"
-	MasterConnectGoVersion  = "1.16.1"
+	MasterProtobufVersion   = "2.12.1"
+	MasterConnectWebVersion = "2.1.2"
+	MasterConnectGoVersion  = "1.18.1"
 	MasterKitVersion        = "0.1.0"
 )
 
-//go:embed templates
+//go:embed all:templates
 var templatesFS embed.FS
 
 func generatePort(appName string) string {
@@ -38,6 +38,7 @@ func main() {
 	initCmd := flag.NewFlagSet("init", flag.ExitOnError)
 	initType := initCmd.String("type", "", "Type ('external-web', 'internal-web', 'internal-api', 'contracts')")
 	initUI := initCmd.String("ui", "svelte", "Frontend framework ('svelte', 'react', 'vue')")
+	initContracts := initCmd.String("contracts", "../contracts", "Relative path to the protobuf contracts directory")
 
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: ceph init --type=<type> <module-name>")
@@ -59,22 +60,22 @@ func main() {
 			fmt.Printf("Scaffolding %s with %s UI for '%s' into current directory...\n", *initType, *initUI, moduleName)
 
 			backendPath := fmt.Sprintf("templates/backends/%s", *initType)
-			scaffoldTemplate(backendPath, ".", moduleName, appPort)
+			scaffoldTemplate(backendPath, ".", moduleName, appPort, *initContracts)
 
 			frontendPath := fmt.Sprintf("templates/frontends/%s", *initUI)
-			scaffoldTemplate(frontendPath, "./frontend", moduleName, appPort)
+			scaffoldTemplate(frontendPath, "./frontend", moduleName, appPort, *initContracts)
 
 			fmt.Println("Done. Run 'make dev' to start.")
 
 		case "internal-api":
 			fmt.Printf("Scaffolding headless %s for '%s' into current directory...\n", *initType, moduleName)
 			backendPath := fmt.Sprintf("templates/backends/%s", *initType)
-			scaffoldTemplate(backendPath, ".", moduleName, appPort)
+			scaffoldTemplate(backendPath, ".", moduleName, appPort, *initContracts)
 			fmt.Println("Done.")
 
 		case "contracts":
 			fmt.Printf("Scaffolding Contracts Repo '%s' into current directory...\n", moduleName)
-			scaffoldTemplate("templates/contracts", ".", moduleName, "")
+			scaffoldTemplate("templates/contracts", ".", moduleName, "", "")
 			fmt.Println("Done.")
 
 		default:
@@ -84,12 +85,15 @@ func main() {
 	}
 }
 
-func scaffoldTemplate(templatePath string, targetDir string, moduleName string, appPort string) {
+func scaffoldTemplate(templatePath string, targetDir string, moduleName string, appPort string, contractsDir string) {
 	err := fs.WalkDir(templatesFS, templatePath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-
+		// only process directories and .tmpl files
+		if !d.IsDir() && !strings.HasSuffix(d.Name(), ".tmpl") {
+			return nil // Skips .DS_Store, stray .env files, etc.
+		}
 		relPath, _ := filepath.Rel(templatePath, path)
 		destPath := filepath.Join(targetDir, strings.TrimSuffix(relPath, ".tmpl"))
 
@@ -105,6 +109,7 @@ func scaffoldTemplate(templatePath string, targetDir string, moduleName string, 
 		processed := string(data)
 		processed = strings.ReplaceAll(processed, "CEPHLODYNE_APP_NAME", moduleName)
 		processed = strings.ReplaceAll(processed, "{{API_PORT}}", appPort)
+		processed = strings.ReplaceAll(processed, "{{CONTRACTS_DIR}}", contractsDir)
 		processed = strings.ReplaceAll(processed, "{{GO_VERSION}}", MasterGoVersion)
 		processed = strings.ReplaceAll(processed, "{{SVELTE_VERSION}}", MasterSvelteVersion)
 		processed = strings.ReplaceAll(processed, "{{VITE_VERSION}}", MasterViteVersion)
