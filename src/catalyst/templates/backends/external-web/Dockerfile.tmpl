@@ -1,0 +1,56 @@
+# syntax=docker/dockerfile:1.4
+ARG NODE_IMAGE=base-repo-node-builder:latest
+ARG GO_IMAGE=base-repo-go-builder:latest
+
+# ==========================================
+# Stage 1: Strict Zero-Trust Frontend Build
+# ==========================================
+FROM ${NODE_IMAGE} AS frontend-builder
+
+# Step INTO the pre-configured workspace inside the base image
+WORKDIR /deps/node-deps/svelte5-only
+
+# Backup the centrally-governed package.json
+RUN cp package.json /tmp/master-package.json
+
+# Copy the developer's frontend source code into the workspace
+COPY ./frontend/ ./
+
+# Force the Master package.json to overwrite whatever the developer brought
+RUN cp /tmp/master-package.json ./package.json
+
+# Build! (PNPM natively uses the workspace lockfile at /deps/pnpm-lock.yaml)
+RUN pnpm install && pnpm audit --prod && pnpm build
+
+
+# ==========================================
+# Stage 2: Go Backend Build
+# ==========================================
+FROM ${GO_IMAGE} AS server-builder
+WORKDIR /app
+
+# Copy the entire Go source tree
+COPY . ./
+
+# Inject the strictly compiled frontend static files BEFORE Go builds
+# so they can be securely embedded via go:embed
+COPY --from=frontend-builder /deps/node-deps/svelte5-only/dist ./frontend/dist
+
+# Build the statically linked Go binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /app/server ./cmd/server
+
+
+# ==========================================
+# Stage 3: Final Distroless Container
+# ==========================================
+FROM scratch
+
+# Copy the compiled, self-contained binary
+COPY --from=server-builder /app/server /server
+
+# Set safe defaults
+ENV PORT=8080
+EXPOSE 8080
+
+# Execute
+ENTRYPOINT ["/server"]

@@ -1,0 +1,16 @@
+version: v1
+managed:
+  enabled: true
+  go_package_prefix:
+    default: CEPHLODYNE_APP_NAME/internal/gen
+plugins:
+  - plugin: go
+    out: internal/gen
+    opt: paths=source_relative
+  - plugin: connect-go
+    out: internal/gen
+    opt: paths=source_relative
+  - plugin: es
+    path: frontend/node_modules/.bin/protoc-gen-es
+    out: frontend/src/gen
+    opt: target=ts
