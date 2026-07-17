@@ -15,7 +15,7 @@ func (s *Server) Ping(
 	req *connect.Request[pingv1.PingRequest],
 ) (*connect.Response[pingv1.PingResponse], error) {
 	
-	greeting := fmt.Sprintf("Hello %s, the mic-drop demo is a success!", req.Msg.Name)
+	greeting := fmt.Sprintf("Hello %s, this message brouhght to you by grpc!", req.Msg.Name)
 	
 	return connect.NewResponse(&pingv1.PingResponse{
 		Message: greeting,

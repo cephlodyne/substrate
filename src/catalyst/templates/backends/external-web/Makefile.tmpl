@@ -34,4 +34,11 @@ dev: generate
 	mkdir -p frontend/dist && echo "<!-- dev server placeholder -->" > frontend/dist/index.html
 	@echo "Starting rapid local development environment..."
 	@echo "Go API running on http://localhost:$${API_PORT}"
-	@bash -c "trap 'kill %1' SIGINT; go run -mod=vendor ./cmd/server/main.go & cd frontend && pnpm dev"
+	@bash -c '\
+		go run ./cmd/server/main.go & \
+		GO_PID=$$!; \
+		cd frontend && pnpm dev & \
+		VITE_PID=$$!; \
+		trap "kill -9 $$GO_PID $$VITE_PID 2>/dev/null" SIGINT SIGTERM EXIT; \
+		wait \
+	'

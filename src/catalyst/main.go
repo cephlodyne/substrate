@@ -15,13 +15,17 @@ import (
 // MASTER VERSIONS (V2 Modernized)
 // ==========================================
 const (
-	MasterGoVersion         = "1.26.4"
-	MasterSvelteVersion     = "5.38.10"
-	MasterViteVersion       = "7.1.5"
-	MasterProtobufVersion   = "2.12.1"
-	MasterConnectWebVersion = "2.1.2"
-	MasterConnectGoVersion  = "1.18.1"
-	MasterKitVersion        = "0.1.0"
+	MasterGoVersion               = "1.26.4"
+	MasterSvelteVersion           = "5.56.5"
+	MasterViteVersion             = "8.1.4"
+	MasterProtobufVersion         = "2.12.1"
+	MasterConnectWebVersion       = "2.1.2"
+	MasterConnectGoVersion        = "1.18.1"
+	MasterKitVersion              = "0.1.0"
+	MasterVitePluginSvelteVersion = "7.2.0"
+	MasterTsConfigSvelteVersion   = "5.0.8"
+	MasterSvelteCheckVersion      = "4.7.3"
+	MasterTypeScriptVersion       = "7.0.2"
 )
 
 //go:embed all:templates
@@ -117,6 +121,10 @@ func scaffoldTemplate(templatePath string, targetDir string, moduleName string, 
 		processed = strings.ReplaceAll(processed, "{{CONNECT_WEB_VERSION}}", MasterConnectWebVersion)
 		processed = strings.ReplaceAll(processed, "{{PROTOBUF_VERSION}}", MasterProtobufVersion)
 		processed = strings.ReplaceAll(processed, "{{KIT_VERSION}}", MasterKitVersion)
+		processed = strings.ReplaceAll(processed, "{{VITE_PLUGIN_SVELTE_VERSION}}", MasterVitePluginSvelteVersion)
+		processed = strings.ReplaceAll(processed, "{{TSCONFIG_SVELTE_VERSION}}", MasterTsConfigSvelteVersion)
+		processed = strings.ReplaceAll(processed, "{{SVELTE_CHECK_VERSION}}", MasterSvelteCheckVersion)
+		processed = strings.ReplaceAll(processed, "{{TYPESCRIPT_VERSION}}", MasterTypeScriptVersion)
 
 		return os.WriteFile(destPath, []byte(processed), 0644)
 	})

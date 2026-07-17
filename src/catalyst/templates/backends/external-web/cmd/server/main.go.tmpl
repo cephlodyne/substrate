@@ -8,8 +8,6 @@ import (
 
 	"github.com/cephlodyne/kit/ev"
 	"github.com/cephlodyne/kit/jot"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 
 	"CEPHLODYNE_APP_NAME/frontend"
 	"CEPHLODYNE_APP_NAME/internal/ping"
@@ -18,8 +16,6 @@ import (
 
 func main() {
 	ctx := context.Background()
-
-	// Initialize structured JSON logging for GCP
 	jot.AutoSetup()
 	
 	port, err := ev.Get("API_PORT")
@@ -32,7 +28,6 @@ func main() {
 	pingPath, pingHandler := pingv1connect.NewPingServiceHandler(&ping.Server{})
 	mux.Handle(pingPath, pingHandler)
 
-	// Pull the embedded filesystem directly from the frontend package
 	frontendFS, err := fs.Sub(frontend.FS, "dist")
 	if err != nil {
 		jot.CtxError(ctx, "failed to load embedded frontend filesystem", err)
@@ -40,11 +35,14 @@ func main() {
 	}
 	mux.Handle("/", http.FileServer(http.FS(frontendFS)))
 
-	h2s := &http2.Server{}
+	// Modern Go native h2c configuration
 	server := &http.Server{
 		Addr:    ":" + port,
-		Handler: h2c.NewHandler(mux, h2s),
+		Handler: mux,
 	}
+	server.Protocols = new(http.Protocols)
+	server.Protocols.SetHTTP1(true)
+	server.Protocols.SetUnencryptedHTTP2(true)
 
 	jot.CtxInfo(ctx, "Starting CEPHLODYNE_APP_NAME server", "port", port)
 	if err := server.ListenAndServe(); err != nil {
