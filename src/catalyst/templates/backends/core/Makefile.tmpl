@@ -1,0 +1,23 @@
+.PHONY: setup build run
+
+setup:
+	@echo "Syncing Go dependencies..."
+	go mod tidy
+	go mod vendor
+{{- if .Features.HasConnectRPC }}
+	@echo "Generating RPC Contracts..."
+	buf generate
+{{- end }}
+{{- if .Features.HasSvelteUI }}
+	@echo "Syncing Node dependencies..."
+	npm_config_offline=false pnpm install
+{{- end }}
+
+build:
+{{- if .Features.HasSvelteUI }}
+	pnpm build
+{{- end }}
+	go build -mod=vendor -o bin/server ./cmd/server
+
+run:
+	go run ./cmd/server

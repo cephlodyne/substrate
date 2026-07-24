@@ -1,0 +1,33 @@
+package ping
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+
+	"connectrpc.com/connect"
+	
+	"{{ .ProjectName }}/pkg/pb/ping/v1"
+	"{{ .ProjectName }}/pkg/pb/ping/v1/pingv1connect"
+)
+
+// Server implements the pingv1connect.PingServiceHandler interface.
+type Server struct{}
+
+// Ping returns a simple greeting via ConnectRPC.
+func (s *Server) Ping(
+	ctx context.Context,
+	req *connect.Request[pingv1.PingRequest],
+) (*connect.Response[pingv1.PingResponse], error) {
+	
+	res := connect.NewResponse(&pingv1.PingResponse{
+		Response: fmt.Sprintf("Hello, %s!", req.Msg.Message),
+	})
+	
+	return res, nil
+}
+
+// NewHandler initializes the service and returns the HTTP path and handler.
+func NewHandler() (string, http.Handler) {
+	return pingv1connect.NewPingServiceHandler(&Server{})
+}

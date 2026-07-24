@@ -1,0 +1,10 @@
+module {{ .ProjectName }}
+
+go {{ .Versions.GoVersion }}
+
+require (
+	github.com/cephlodyne/kit {{ .Versions.KitVersion }}
+{{- if .Features.HasConnectRPC }}
+	connectrpc.com/connect latest
+{{- end }}
+)

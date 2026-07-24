@@ -1,0 +1,83 @@
+package main
+
+import (
+	"net/http"
+	{{- if .Features.HasIAPAuth }}
+	"encoding/json"
+	{{- end }}
+
+	"github.com/cephlodyne/kit/api"
+	"github.com/cephlodyne/kit/ev"
+	"github.com/cephlodyne/kit/helmet"
+	"github.com/cephlodyne/kit/runner"
+	"github.com/cephlodyne/kit/trail"
+	{{- if .Features.HasIAPAuth }}
+	"github.com/cephlodyne/kit/auth"
+	{{- end }}
+
+{{- if .Features.HasConnectRPC }}
+	"{{ .ProjectName }}/internal/ping"
+{{- end }}
+{{- if .Features.HasSvelteUI }}
+	"{{ .ProjectName }}/internal/ui"
+{{- end }}
+)
+
+{{ if .Features.HasIAPAuth }}
+// DefaultChecker is a placeholder RBAC implementation
+type DefaultChecker struct{}
+
+func (c *DefaultChecker) HasPermission(ctx context.Context, identity, permission string) (bool, error) {
+	return true, nil
+}
+{{ end }}
+
+func main() {
+	isCloud := ev.IsCloud()
+	isProd := ev.IsProd()
+	trail.Setup(isCloud, isProd)
+
+	mux := api.NewMux()
+
+{{- if .Features.HasConnectRPC }}
+	pingPath, pingHandler := ping.NewHandler()
+	mux.Handle(pingPath, pingHandler)
+{{- end }}
+
+{{- if .Features.HasIAPAuth }}
+	// --- IAP Authentication Setup ---
+	authenticator := &auth.Authenticator{
+		Audience:    ev.GetOptional("IAP_AUDIENCE", ""),
+		IsCloud:     isCloud,
+		DevOverride: "dev-user@cephlodyne.com",
+		Checker:     &DefaultChecker{},
+	}
+	
+	mux.HandleFunc("GET /api/v1/me", authenticator.RequireAny(meHandler, "internal-access"))
+{{- end }}
+
+{{- if .Features.HasSvelteUI }}
+	mux.Handle("/", ui.Handler())
+	secureMux := helmet.New("/assets/", "/static/")(mux)
+{{- else }}
+	secureMux := helmet.New()(mux)
+{{- end }}
+
+	runner.Start(ev.GetOptional("PORT", "8080"), secureMux)
+}
+
+{{ if .Features.HasIAPAuth }}
+// meHandler exposes the underlying identity from the IAP JWT
+func meHandler(w http.ResponseWriter, r *http.Request) {
+	identity, ok := r.Context().Value(auth.IdentityKey).(string)
+	if !ok || identity == "" {
+		api.WriteError(w, r, http.StatusUnauthorized, "Unauthorized", "No valid identity found.")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"email": identity,
+	})
+}
+{{ end }}

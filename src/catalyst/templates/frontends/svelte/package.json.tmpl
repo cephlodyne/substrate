@@ -8,13 +8,15 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "@bufbuild/protoc-gen-es": "{{PROTOBUF_VERSION}}",
-    "@sveltejs/vite-plugin-svelte": "{{VITE_PLUGIN_SVELTE_VERSION}}",
-    "@tsconfig/svelte": "{{TSCONFIG_SVELTE_VERSION}}",
-    "svelte": "{{SVELTE_VERSION}}",
-    "svelte-check": "{{SVELTE_CHECK_VERSION}}",
-    "typescript": "{{TYPESCRIPT_VERSION}}",
-    "vite": "{{VITE_VERSION}}"
+    "@bufbuild/protoc-gen-es": "{{ .Versions.ProtobufGenEsVersion }}",
+    "@sveltejs/vite-plugin-svelte": "{{ .Versions.VitePluginSvelteVersion }}",
+    "@tsconfig/svelte": "{{ .Versions.TSConfigSvelteVersion }}",
+    "svelte": "{{ .Versions.SvelteVersion }}",
+    "svelte-check": "{{ .Versions.SvelteCheckVersion }}",
+    "svelte-preprocess": "{{ .Versions.SveltePreprocessVersion }}",
+    "tslib": "{{ .Versions.TSLibVersion }}",
+    "typescript": "{{ .Versions.TypeScriptVersion }}",
+    "vite": "{{ .Versions.ViteVersion }}"
   },
   "dependencies": {
     "@bufbuild/protobuf": "{{PROTOBUF_VERSION}}",
