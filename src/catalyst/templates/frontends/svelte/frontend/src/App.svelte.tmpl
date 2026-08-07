@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { createClient } from "@connectrpc/connect";
+import { createClient } from "@connectrpc/connect";
   import { createConnectTransport } from "@connectrpc/connect-web";
-  import { PingService } from "./lib/pb/ping/v1/ping_connect";
+  import { PingService } from "./lib/pb/ping/v1/ping_pb";
 
   const transport = createConnectTransport({ baseUrl: "" });
   const client = createClient(PingService, transport);
@@ -11,8 +11,8 @@
 
   onMount(async () => {
     try {
-      const response = await client.ping({ name: "Strata Crowd" });
-      statusMessage = response.message;
+      const response = await client.ping({ message: "Strata Crowd" });
+      statusMessage = response.response;
     } catch (error) {
       statusMessage = "API unreachable. Check terminal logs.";
       console.error(error);

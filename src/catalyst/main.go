@@ -18,7 +18,7 @@ var templatesFS embed.FS
 
 // Master versions matching the zero-trust base-images strictly
 const (
-	ProtobufGenEsVersion    = "2.12.1"
+	ProtobufGenEsVersion    = "2.13.0"
 	VitePluginSvelteVersion = "7.2.0"
 	TSConfigSvelteVersion   = "5.0.8"
 	SvelteVersion           = "5.56.5"

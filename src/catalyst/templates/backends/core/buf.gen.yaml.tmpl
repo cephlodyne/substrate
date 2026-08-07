@@ -1,4 +1,9 @@
 version: v2
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: {{ .ProjectName }}/pkg/pb
 plugins:
   # --- Go Backend Plugins ---
   - local: protoc-gen-go
@@ -11,9 +16,6 @@ plugins:
 {{- if .Features.HasSvelteUI }}
   # --- TypeScript Frontend Plugins ---
   - local: protoc-gen-es
-    out: frontend/src/lib/pb
-    opt: target=ts
-  - local: protoc-gen-connect-es
     out: frontend/src/lib/pb
     opt: target=ts
 {{- end }}

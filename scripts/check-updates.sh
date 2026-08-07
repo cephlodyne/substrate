@@ -409,7 +409,7 @@ check_go_generators() {
   fi
 }
 
-# Check composite Node generators
+# Check Node generators
 check_node_generators() {
   local receipt_val
   receipt_val=$(get_local_version "Node_Generators")
@@ -419,9 +419,7 @@ check_node_generators() {
     return
   fi
 
-  local current_es="${receipt_val%_*}"
-  local current_connect_es="${receipt_val#*_}"
-
+  local current_es="$receipt_val"
   local NPM_BIN="$HOME/.local/bin/npm"
   if [ ! -x "$NPM_BIN" ]; then NPM_BIN="npm"; fi
 
@@ -436,20 +434,6 @@ check_node_generators() {
       echo -e "🚨 UPDATE AVAILABLE: protoc-gen-es (Current: $current_es -> Latest: $latest_es) $es_age"
     else
       echo -e "✅ protoc-gen-es is up-to-date ($current_es) $es_age"
-    fi
-  fi
-
-  # Check protoc-gen-connect-es
-  local latest_connect_es=$("$NPM_BIN" view @connectrpc/protoc-gen-connect-es version 2>/dev/null || true)
-  local connect_es_time=$("$NPM_BIN" view @connectrpc/protoc-gen-connect-es time --json 2>/dev/null | grep "\"$latest_connect_es\":" | head -n 1 | cut -d'"' -f4 | cut -c1-19 || true)
-  local connect_es_age=""
-  if [ -n "$connect_es_time" ]; then connect_es_age=$(format_age "${connect_es_time}Z"); fi
-
-  if [ -n "$latest_connect_es" ]; then
-    if [ "$current_connect_es" != "$latest_connect_es" ]; then
-      echo -e "🚨 UPDATE AVAILABLE: protoc-gen-connect-es (Current: $current_connect_es -> Latest: $latest_connect_es) $connect_es_age"
-    else
-      echo -e "✅ protoc-gen-connect-es is up-to-date ($current_connect_es) $connect_es_age"
     fi
   fi
 }

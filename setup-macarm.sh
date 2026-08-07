@@ -153,7 +153,6 @@ BUF_VERSION="v1.72.0"
 PROTOC_GEN_GO_VERSION="v1.36.11"
 PROTOC_GEN_CONNECT_GO_VERSION="v1.18.1"
 PROTOC_GEN_ES_VERSION="2.13.0"
-PROTOC_GEN_CONNECT_ES_VERSION="1.7.0"
 
 # ==============================================================================
 # Paths & Ledger Setup
@@ -427,12 +426,11 @@ if needs_update "Go_Generators" "${PROTOC_GEN_GO_VERSION}_${PROTOC_GEN_CONNECT_G
   mark_updated "Go_Generators" "${PROTOC_GEN_GO_VERSION}_${PROTOC_GEN_CONNECT_GO_VERSION}"
 fi
 
-if needs_update "Node_Generators" "${PROTOC_GEN_ES_VERSION}_${PROTOC_GEN_CONNECT_ES_VERSION}"; then
+if needs_update "Node_Generators" "$PROTOC_GEN_ES_VERSION"; then
   echo "📦 Installing Node Protobuf plugins securely via verified NPM binary..."
-  "$BIN_DIR/npm" install -g "@bufbuild/protoc-gen-es@${PROTOC_GEN_ES_VERSION}" "@connectrpc/protoc-gen-connect-es@${PROTOC_GEN_CONNECT_ES_VERSION}"
+  "$BIN_DIR/npm" install -g "@bufbuild/protoc-gen-es@${PROTOC_GEN_ES_VERSION}"
   ln -sf "$LOCAL_DIR/node/bin/protoc-gen-es" "$BIN_DIR/protoc-gen-es"
-  ln -sf "$LOCAL_DIR/node/bin/protoc-gen-connect-es" "$BIN_DIR/protoc-gen-connect-es"
-  mark_updated "Node_Generators" "${PROTOC_GEN_ES_VERSION}_${PROTOC_GEN_CONNECT_ES_VERSION}"
+  mark_updated "Node_Generators" "$PROTOC_GEN_ES_VERSION"
 fi
 
 echo "🧹 Cleaning up raw downloaded archives..."
