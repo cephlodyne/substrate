@@ -1,16 +1,19 @@
 version: v2
 plugins:
   # --- Go Backend Plugins ---
-  - plugin: go
+  - local: protoc-gen-go
     out: pkg/pb
     opt: paths=source_relative
-  - plugin: connect-go
+  - local: protoc-gen-connect-go
     out: pkg/pb
     opt: paths=source_relative
 
 {{- if .Features.HasSvelteUI }}
   # --- TypeScript Frontend Plugins ---
-  - plugin: es
-    out: src/lib/pb
+  - local: protoc-gen-es
+    out: frontend/src/lib/pb
+    opt: target=ts
+  - local: protoc-gen-connect-es
+    out: frontend/src/lib/pb
     opt: target=ts
 {{- end }}

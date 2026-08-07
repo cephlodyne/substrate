@@ -70,7 +70,8 @@ func getDynamicVersions() patterns.Versions {
 func main() {
 	patternFlag := flag.String("pattern", "", "The pattern to generate (e.g., external_web, api, internal_admin)")
 	nameFlag := flag.String("name", "myapp", "The Go module name")
-	dirFlag := flag.String("dir", "./output", "Target directory")
+	dirFlag := flag.String("dir", ".", "Target directory")
+	contractsFlag := flag.String("contracts", "../contracts", "Relative path to contracts repo")
 	flag.Parse()
 
 	if *patternFlag == "" {
@@ -83,9 +84,10 @@ func main() {
 	}
 
 	data := patterns.TemplateData{
-		ProjectName: *nameFlag,
-		Features:    pattern.Features,
-		Versions:    getDynamicVersions(),
+		ProjectName:  *nameFlag,
+		Features:     pattern.Features,
+		Versions:     getDynamicVersions(),
+		ContractsDir: *contractsFlag, // Pass it to the engine here
 	}
 
 	fmt.Printf("Generating %s in %s...\n", pattern.ID, *dirFlag)

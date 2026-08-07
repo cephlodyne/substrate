@@ -152,7 +152,8 @@ BIOME_VERSION="2.5.7"
 BUF_VERSION="v1.72.0"
 PROTOC_GEN_GO_VERSION="v1.36.11"
 PROTOC_GEN_CONNECT_GO_VERSION="v1.18.1"
-PROTOC_GEN_ES_VERSION="2.2.3"
+PROTOC_GEN_ES_VERSION="2.13.0"
+PROTOC_GEN_CONNECT_ES_VERSION="1.7.0"
 
 # ==============================================================================
 # Paths & Ledger Setup
@@ -426,12 +427,12 @@ if needs_update "Go_Generators" "${PROTOC_GEN_GO_VERSION}_${PROTOC_GEN_CONNECT_G
   mark_updated "Go_Generators" "${PROTOC_GEN_GO_VERSION}_${PROTOC_GEN_CONNECT_GO_VERSION}"
 fi
 
-if needs_update "Node_Generators" "$PROTOC_GEN_ES_VERSION"; then
+if needs_update "Node_Generators" "${PROTOC_GEN_ES_VERSION}_${PROTOC_GEN_CONNECT_ES_VERSION}"; then
   echo "📦 Installing Node Protobuf plugins securely via verified NPM binary..."
-  # Install ONLY protoc-gen-es
-  "$BIN_DIR/npm" install -g "@bufbuild/protoc-gen-es@${PROTOC_GEN_ES_VERSION}"
+  "$BIN_DIR/npm" install -g "@bufbuild/protoc-gen-es@${PROTOC_GEN_ES_VERSION}" "@connectrpc/protoc-gen-connect-es@${PROTOC_GEN_CONNECT_ES_VERSION}"
   ln -sf "$LOCAL_DIR/node/bin/protoc-gen-es" "$BIN_DIR/protoc-gen-es"
-  mark_updated "Node_Generators" "$PROTOC_GEN_ES_VERSION"
+  ln -sf "$LOCAL_DIR/node/bin/protoc-gen-connect-es" "$BIN_DIR/protoc-gen-connect-es"
+  mark_updated "Node_Generators" "${PROTOC_GEN_ES_VERSION}_${PROTOC_GEN_CONNECT_ES_VERSION}"
 fi
 
 echo "🧹 Cleaning up raw downloaded archives..."
@@ -761,3 +762,4 @@ nvim --headless -c "lua $TS_LUA"
 echo "=============================================================================="
 echo "🎉 Secure IDE environment is synced and ready!"
 echo "=============================================================================="
+echo "👉 Note: Run 'source ~/.zshrc' or restart your terminal to clear the old environment variables."

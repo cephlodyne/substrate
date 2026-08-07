@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { createClient } from "@connectrpc/connect";
   import { createConnectTransport } from "@connectrpc/connect-web";
-  import { PingService } from "./gen/ping/v1/ping_pb";
+  import { PingService } from "./lib/pb/ping/v1/ping_connect";
 
   const transport = createConnectTransport({ baseUrl: "" });
   const client = createClient(PingService, transport);

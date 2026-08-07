@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	{{- if .Features.HasIAPAuth }}
 	"encoding/json"
+	{{- end }}
+	{{- if .Features.HasSvelteUI }}
+	"io/fs"
+	"log"
 	{{- end }}
 
 	"github.com/cephlodyne/kit/api"
@@ -19,7 +24,7 @@ import (
 	"{{ .ProjectName }}/internal/ping"
 {{- end }}
 {{- if .Features.HasSvelteUI }}
-	"{{ .ProjectName }}/internal/ui"
+	"{{ .ProjectName }}/frontend"
 {{- end }}
 )
 
@@ -57,7 +62,11 @@ func main() {
 {{- end }}
 
 {{- if .Features.HasSvelteUI }}
-	mux.Handle("/", ui.Handler())
+	frontendFS, err := fs.Sub(frontend.FS, "dist")
+	if err != nil {
+		log.Fatal("failed to load embedded frontend filesystem: ", err)
+	}
+	mux.Handle("/", http.FileServer(http.FS(frontendFS)))
 	secureMux := helmet.New("/assets/", "/static/")(mux)
 {{- else }}
 	secureMux := helmet.New()(mux)

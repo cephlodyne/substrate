@@ -6,18 +6,28 @@ setup:
 	go mod vendor
 {{- if .Features.HasConnectRPC }}
 	@echo "Generating RPC Contracts..."
-	buf generate
+	buf generate {{ .ContractsDir }} --template buf.gen.yaml
 {{- end }}
 {{- if .Features.HasSvelteUI }}
 	@echo "Syncing Node dependencies..."
-	npm_config_offline=false pnpm install
+	cd frontend && npm_config_offline=false pnpm install
+	@echo "Ensuring frontend dist directory exists for go:embed..."
+	mkdir -p frontend/dist && touch frontend/dist/.keep
 {{- end }}
 
 build:
 {{- if .Features.HasSvelteUI }}
-	pnpm build
+	cd frontend && pnpm build
 {{- end }}
 	go build -mod=vendor -o bin/server ./cmd/server
 
-run:
-	go run ./cmd/server
+run: build
+	./bin/server
+
+dev: setup
+{{- if .Features.HasSvelteUI }}
+	@echo "Starting rapid local development environment..."
+	@bash -c "trap 'kill %1' SIGINT; go run -mod=vendor ./cmd/server/main.go & cd frontend && pnpm dev"
+{{- else }}
+	go run -mod=vendor ./cmd/server/main.go
+{{- end }}

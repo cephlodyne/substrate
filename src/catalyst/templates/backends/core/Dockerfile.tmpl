@@ -7,12 +7,12 @@ ARG NODE_IMAGE
 {{ if .Features.HasSvelteUI }}
 # --- Stage 1: UI Build (Offline) ---
 FROM ${NODE_IMAGE} AS ui-builder
-WORKDIR /app
+WORKDIR /app/frontend
 
-COPY package.json pnpm-lock.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN pnpm install
 
-COPY . .
+COPY frontend/ ./
 RUN pnpm build
 {{- end }}
 
@@ -25,7 +25,7 @@ COPY vendor/ vendor/
 COPY . .
 
 {{- if .Features.HasSvelteUI }}
-COPY --from=ui-builder /app/dist ./internal/ui/dist
+COPY --from=ui-builder /app/frontend/dist ./frontend/dist
 {{- end }}
 
 # Build securely from the local vendor directory
