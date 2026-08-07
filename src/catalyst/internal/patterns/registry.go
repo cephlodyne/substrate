@@ -2,6 +2,12 @@ package patterns
 
 // Registry is the master map of all available architectures
 var Registry = map[string]Pattern{
+	"contracts": {
+		ID: "contracts",
+		Features: Features{
+			IsContractsRepo: true,
+		},
+	},
 	"api": {
 		ID: "api",
 		Features: Features{

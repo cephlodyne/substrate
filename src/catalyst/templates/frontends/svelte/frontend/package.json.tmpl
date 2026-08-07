@@ -1,5 +1,5 @@
 {
-  "name": "CEPHLODYNE_APP_NAME-frontend",
+  "name": "{{ .ProjectName }}-frontend",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,8 +19,8 @@
     "vite": "{{ .Versions.ViteVersion }}"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "{{PROTOBUF_VERSION}}",
-    "@connectrpc/connect": "{{CONNECT_WEB_VERSION}}",
-    "@connectrpc/connect-web": "{{CONNECT_WEB_VERSION}}"
+    "@bufbuild/protobuf": "{{ .Versions.ProtobufVersion }}",
+    "@connectrpc/connect": "{{ .Versions.ConnectWebVersion }}",
+    "@connectrpc/connect-web": "{{ .Versions.ConnectWebVersion }}"
   }
 }

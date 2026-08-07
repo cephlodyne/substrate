@@ -2,7 +2,9 @@ syntax = "proto3";
 
 package ping.v1;
 
-option go_package = "{{ .ProjectName }}/pkg/pb/ping/v1;pingv1";
+// Use a generic path for the shared contracts repo. 
+// Backends will override this using Buf Managed Mode.
+option go_package = "{{ .ProjectName }}/ping/v1;pingv1";
 
 service PingService {
   rpc Ping(PingRequest) returns (PingResponse) {}

@@ -365,6 +365,79 @@ check_go_pkg() {
   fi
 }
 
+# Check composite Go generators
+check_go_generators() {
+  local receipt_val
+  receipt_val=$(get_local_version "Go_Generators")
+
+  if [ -z "$receipt_val" ]; then
+    echo "⏭️  Go_Generators: Not found in receipts."
+    return
+  fi
+
+  local current_go="${receipt_val%_*}"
+  local current_connect_go="${receipt_val#*_}"
+
+  # Check protoc-gen-go
+  local go_api_resp=$(curl --proto '=https' --tlsv1.2 -sSL "https://proxy.golang.org/google.golang.org/protobuf/cmd/protoc-gen-go/@latest" || true)
+  local latest_go=$(echo "$go_api_resp" | grep -o '"Version":"[^"]*"' | sed -E 's/"Version":"([^"]+)"/\1/' || true)
+  local go_time=$(echo "$go_api_resp" | grep -o '"Time":"[^"]*"' | sed -E 's/"Time":"([^"]+)"/\1/' || true)
+  local go_age=""
+  if [ -n "$go_time" ]; then go_age=$(format_age "$go_time"); fi
+
+  if [ -n "$latest_go" ]; then
+    if [ "$current_go" != "$latest_go" ]; then
+      echo -e "🚨 UPDATE AVAILABLE: protoc-gen-go (Current: $current_go -> Latest: $latest_go) $go_age"
+    else
+      echo -e "✅ protoc-gen-go is up-to-date ($current_go) $go_age"
+    fi
+  fi
+
+  # Check protoc-gen-connect-go
+  local connect_api_resp=$(curl --proto '=https' --tlsv1.2 -sSL "https://proxy.golang.org/connectrpc.com/connect/cmd/protoc-gen-connect-go/@latest" || true)
+  local latest_connect=$(echo "$connect_api_resp" | grep -o '"Version":"[^"]*"' | sed -E 's/"Version":"([^"]+)"/\1/' || true)
+  local connect_time=$(echo "$connect_api_resp" | grep -o '"Time":"[^"]*"' | sed -E 's/"Time":"([^"]+)"/\1/' || true)
+  local connect_age=""
+  if [ -n "$connect_time" ]; then connect_age=$(format_age "$connect_time"); fi
+
+  if [ -n "$latest_connect" ]; then
+    if [ "$current_connect_go" != "$latest_connect" ]; then
+      echo -e "🚨 UPDATE AVAILABLE: protoc-gen-connect-go (Current: $current_connect_go -> Latest: $latest_connect) $connect_age"
+    else
+      echo -e "✅ protoc-gen-connect-go is up-to-date ($current_connect_go) $connect_age"
+    fi
+  fi
+}
+
+# Check Node generators
+check_node_generators() {
+  local receipt_val
+  receipt_val=$(get_local_version "Node_Generators")
+
+  if [ -z "$receipt_val" ]; then
+    echo "⏭️  Node_Generators: Not found in receipts."
+    return
+  fi
+
+  local current_es="$receipt_val"
+  local NPM_BIN="$HOME/.local/bin/npm"
+  if [ ! -x "$NPM_BIN" ]; then NPM_BIN="npm"; fi
+
+  # Check protoc-gen-es
+  local latest_es=$("$NPM_BIN" view @bufbuild/protoc-gen-es version 2>/dev/null || true)
+  local es_time=$("$NPM_BIN" view @bufbuild/protoc-gen-es time --json 2>/dev/null | grep "\"$latest_es\":" | head -n 1 | cut -d'"' -f4 | cut -c1-19 || true)
+  local es_age=""
+  if [ -n "$es_time" ]; then es_age=$(format_age "${es_time}Z"); fi
+
+  if [ -n "$latest_es" ]; then
+    if [ "$current_es" != "$latest_es" ]; then
+      echo -e "🚨 UPDATE AVAILABLE: protoc-gen-es (Current: $current_es -> Latest: $latest_es) $es_age"
+    else
+      echo -e "✅ protoc-gen-es is up-to-date ($current_es) $es_age"
+    fi
+  fi
+}
+
 # ==============================================================================
 # 2. EXECUTE CHECKS
 # ==============================================================================
@@ -402,12 +475,11 @@ check_github "Lazygit" "jesseduffield/lazygit"
 check_github "Treesitter" "tree-sitter/tree-sitter"
 check_github "TruffleHog" "trufflesecurity/trufflehog"
 check_npm_packages
-check_go_pkg "Gopls" "golang.org/x/tools/gopls"
-check_go_pkg "Goimports" "golang.org/x/tools"
+check_node_generators
 check_go_pkg "Gopls" "golang.org/x/tools/gopls"
 check_go_pkg "Goimports" "golang.org/x/tools"
 check_go_pkg "Buf" "github.com/bufbuild/buf"
-check_go_pkg "Go_Generators" "google.golang.org/protobuf"
+check_go_generators
 
 echo "----------------------------------------------------"
 echo "🏁 Update check complete."

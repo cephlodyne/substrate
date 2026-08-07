@@ -3,27 +3,27 @@ package patterns
 
 // Features act as toggles for the text/template logic inside .tmpl files
 type Features struct {
-	HasSvelteUI   bool
-	HasConnectRPC bool
-	HasIAPAuth    bool // Triggers kit/auth injection
+	HasSvelteUI     bool
+	HasConnectRPC   bool
+	HasIAPAuth      bool // Triggers kit/auth injection
+	IsContractsRepo bool
 }
 
 // Components automatically deduces which folders to pull from the embedded FS
 func (f Features) Components() []string {
-	// The core backend is the baseline for all microservice patterns
-	comps := []string{"backends/core"}
-
-	if f.HasConnectRPC {
-		comps = append(comps, "contracts/proto")
+	// If it's a contracts repo, ONLY scaffold the contracts
+	if f.IsContractsRepo {
+		return []string{"contracts/proto"}
 	}
+
+	// Otherwise, scaffold the backend and frontend
+	comps := []string{"backends/core"}
 	if f.HasSvelteUI {
 		comps = append(comps, "frontends/svelte")
 	}
-
 	return comps
 }
 
-// Versions mirrors the centralized constants defined in main.go
 // Versions mirrors the centralized constants defined in main.go and local environment
 type Versions struct {
 	GoVersion               string
@@ -45,9 +45,10 @@ type Versions struct {
 
 // TemplateData is the exact payload passed into tmpl.Execute()
 type TemplateData struct {
-	ProjectName string
-	Features    Features
-	Versions    Versions
+	ProjectName  string
+	Features     Features
+	Versions     Versions
+	ContractsDir string
 }
 
 // Pattern defines a specific architecture
