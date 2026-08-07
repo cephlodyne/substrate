@@ -1,0 +1,819 @@
+<repository_context>
+  <system_instructions>
+    You are an expert software engineer and architect. Review the 'directory_structure' to understand the project architecture, then review the code in the 'files' section. 
+    
+    CRITICAL RULES:
+    1. NEVER output an entire file unless explicitly asked to do so.
+    2. When suggesting changes, ONLY output the specific blocks or lines that need modification.
+    3. Clearly state which file you are modifying and provide surrounding context (a few lines above and below).
+    4. Think step-by-step: Briefly explain your reasoning BEFORE writing code.
+    5. Be direct, concise, and professional.
+  </system_instructions>
+
+  <directory_structure>
+- ./
+  - go.mod
+  - internal/
+    - engine/
+      - generator.go
+    - patterns/
+      - registry.go
+      - types.go
+  - main.go
+  - templates/
+    - backends/
+      - core/
+        - cmd/
+          - server/
+            - main.go.tmpl
+        - Dockerfile.tmpl
+        - go.mod.tmpl
+        - Makefile.tmpl
+    - contracts/
+      - proto/
+        - buf.gen.yaml.tmpl
+        - buf.yaml.tmpl
+        - internal/
+          - ping/
+            - ping.go.tmpl
+        - ping/
+          - v1/
+            - ping.proto.tmpl
+    - frontends/
+      - svelte/
+        - .npmrc.tmpl
+        - embed.go.tmpl
+        - index.html.tmpl
+        - package.json.tmpl
+        - pnpm-workspace.yaml.tmpl
+        - src/
+          - App.svelte.tmpl
+          - main.ts.tmpl
+          - vite-env.d.ts.tmpl
+        - svelte.config.js.tmpl
+        - tsconfig.json.tmpl
+        - vite.config.ts.tmpl
+  </directory_structure>
+
+  <files>
+    <file path="go.mod">
+      <![CDATA[
+module catalyst
+
+go 1.26.5
+
+      ]]>
+    </file>
+    <file path="internal/patterns/types.go">
+      <![CDATA[
+// Package patterns defines the available architectures and template data structures.
+package patterns
+
+// Features act as toggles for the text/template logic inside .tmpl files
+type Features struct {
+	HasSvelteUI   bool
+	HasConnectRPC bool
+	HasIAPAuth    bool // Triggers kit/auth injection
+}
+
+// Components automatically deduces which folders to pull from the embedded FS
+func (f Features) Components() []string {
+	// The core backend is the baseline for all microservice patterns
+	comps := []string{"backends/core"}
+
+	if f.HasConnectRPC {
+		comps = append(comps, "contracts/proto")
+	}
+	if f.HasSvelteUI {
+		comps = append(comps, "frontends/svelte")
+	}
+
+	return comps
+}
+
+// Versions mirrors the centralized constants defined in main.go
+// Versions mirrors the centralized constants defined in main.go and local environment
+type Versions struct {
+	GoVersion               string
+	NodeVersion             string
+	PnpmVersion             string
+	ProtobufGenEsVersion    string
+	VitePluginSvelteVersion string
+	TSConfigSvelteVersion   string
+	SvelteVersion           string
+	SvelteCheckVersion      string
+	SveltePreprocessVersion string
+	TypeScriptVersion       string
+	TSLibVersion            string
+	ViteVersion             string
+	ProtobufVersion         string
+	ConnectWebVersion       string
+	KitVersion              string
+}
+
+// TemplateData is the exact payload passed into tmpl.Execute()
+type TemplateData struct {
+	ProjectName string
+	Features    Features
+	Versions    Versions
+}
+
+// Pattern defines a specific architecture
+type Pattern struct {
+	ID       string
+	Features Features
+}
+
+      ]]>
+    </file>
+    <file path="internal/patterns/registry.go">
+      <![CDATA[
+package patterns
+
+// Registry is the master map of all available architectures
+var Registry = map[string]Pattern{
+	"api": {
+		ID: "api",
+		Features: Features{
+			HasSvelteUI:   false,
+			HasConnectRPC: true,
+			HasIAPAuth:    false,
+		},
+	},
+	"external_web": {
+		ID: "external_web",
+		Features: Features{
+			HasSvelteUI:   true,
+			HasConnectRPC: true,
+			HasIAPAuth:    false,
+		},
+	},
+	"internal_admin": {
+		ID: "internal_admin",
+		Features: Features{
+			HasSvelteUI:   true,
+			HasConnectRPC: true,
+			HasIAPAuth:    true,
+		},
+	},
+}
+
+      ]]>
+    </file>
+    <file path="internal/engine/generator.go">
+      <![CDATA[
+// Package engine provides the core template execution and file generation logic.
+package engine
+
+import (
+	"embed"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+	"text/template"
+
+	"catalyst/internal/patterns"
+)
+
+// Generate walks the requested components and applies the templates
+func Generate(targetDir string, data patterns.TemplateData, pattern patterns.Pattern, templatesFS embed.FS) error {
+	for _, component := range pattern.Features.Components() {
+		basePath := "templates/" + component
+
+		err := fs.WalkDir(templatesFS, basePath, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+
+			if !strings.HasSuffix(path, ".tmpl") {
+				return nil
+			}
+
+			relPath, err := filepath.Rel(basePath, path)
+			if err != nil {
+				return err
+			}
+
+			targetFilePath := strings.TrimSuffix(relPath, ".tmpl")
+			fullTargetPath := filepath.Join(targetDir, targetFilePath)
+
+			rawTmpl, err := templatesFS.ReadFile(path)
+			if err != nil {
+				return err
+			}
+
+			tmpl, err := template.New(targetFilePath).Parse(string(rawTmpl))
+			if err != nil {
+				return err
+			}
+
+			if err := os.MkdirAll(filepath.Dir(fullTargetPath), 0755); err != nil {
+				return err
+			}
+
+			out, err := os.Create(fullTargetPath)
+			if err != nil {
+				return err
+			}
+
+			// Execute the template and explicitly check the file closure
+			if err := tmpl.Execute(out, data); err != nil {
+				_ = out.Close() // Safely ignore close error if execution already failed
+				return err
+			}
+
+			return out.Close()
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+      ]]>
+    </file>
+    <file path="templates/frontends/svelte/package.json.tmpl">
+      <![CDATA[
+{
+  "name": "CEPHLODYNE_APP_NAME-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@bufbuild/protoc-gen-es": "{{ .Versions.ProtobufGenEsVersion }}",
+    "@sveltejs/vite-plugin-svelte": "{{ .Versions.VitePluginSvelteVersion }}",
+    "@tsconfig/svelte": "{{ .Versions.TSConfigSvelteVersion }}",
+    "svelte": "{{ .Versions.SvelteVersion }}",
+    "svelte-check": "{{ .Versions.SvelteCheckVersion }}",
+    "svelte-preprocess": "{{ .Versions.SveltePreprocessVersion }}",
+    "tslib": "{{ .Versions.TSLibVersion }}",
+    "typescript": "{{ .Versions.TypeScriptVersion }}",
+    "vite": "{{ .Versions.ViteVersion }}"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "{{PROTOBUF_VERSION}}",
+    "@connectrpc/connect": "{{CONNECT_WEB_VERSION}}",
+    "@connectrpc/connect-web": "{{CONNECT_WEB_VERSION}}"
+  }
+}
+
+      ]]>
+    </file>
+    <file path="templates/frontends/svelte/vite.config.ts.tmpl">
+      <![CDATA[
+import { defineConfig, loadEnv } from 'vite'
+import { svelte } from '@sveltejs/vite-plugin-svelte'
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiPort = env.API_PORT || '8080'
+
+  return {
+    plugins: [svelte()],
+    clearScreen: false,
+    server: {
+      proxy: {
+        '^/.*Service/.*': {
+          target: `http://127.0.0.1:${apiPort}`,
+          changeOrigin: true,
+        }
+      }
+    }
+  }
+})
+
+      ]]>
+    </file>
+    <file path="templates/frontends/svelte/svelte.config.js.tmpl">
+      <![CDATA[
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte'
+export default { preprocess: vitePreprocess() }
+
+      ]]>
+    </file>
+    <file path="templates/frontends/svelte/.npmrc.tmpl">
+      <![CDATA[
+# Prioritize the offline zero-trust cache, but allow metadata fetching for fresh lockfile generation
+prefer-offline=true
+
+# Allow developers to generate lockfiles locally (Cloud Build strictly overrides this to true!)
+frozen-lockfile=false
+
+      ]]>
+    </file>
+    <file path="templates/frontends/svelte/index.html.tmpl">
+      <![CDATA[
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CEPHLODYNE_APP_NAME</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+
+      ]]>
+    </file>
+    <file path="templates/frontends/svelte/embed.go.tmpl">
+      <![CDATA[
+package frontend
+
+import "embed"
+
+//go:embed all:dist
+var FS embed.FS
+
+      ]]>
+    </file>
+    <file path="templates/frontends/svelte/pnpm-workspace.yaml.tmpl">
+      <![CDATA[
+# Supply Chain Security: Prevent pulling packages published in the last 24 hours
+minimumReleaseAge: 1440
+
+# Manage lifecycle script execution securely
+allowBuilds:
+  esbuild: true
+  svelte-preprocess: true
+
+      ]]>
+    </file>
+    <file path="templates/frontends/svelte/src/App.svelte.tmpl">
+      <![CDATA[
+<script lang="ts">
+  import { onMount } from "svelte";
+  import { createClient } from "@connectrpc/connect";
+  import { createConnectTransport } from "@connectrpc/connect-web";
+  import { PingService } from "./gen/ping/v1/ping_pb";
+
+  const transport = createConnectTransport({ baseUrl: "" });
+  const client = createClient(PingService, transport);
+
+  let statusMessage = "Pinging Go backend...";
+
+  onMount(async () => {
+    try {
+      const response = await client.ping({ name: "Strata Crowd" });
+      statusMessage = response.message;
+    } catch (error) {
+      statusMessage = "API unreachable. Check terminal logs.";
+      console.error(error);
+    }
+  });
+</script>
+
+<main>
+  <h1>CEPHLODYNE_APP_NAME</h1>
+  <div class="card">
+    <h2>Backend Status:</h2>
+    <p><strong>{statusMessage}</strong></p>
+  </div>
+</main>
+
+<style>
+  main {
+    font-family: system-ui, sans-serif;
+    text-align: center;
+    padding: 2rem;
+  }
+  .card {
+    background: #f4f4f5;
+    padding: 1rem;
+    border-radius: 8px;
+    display: inline-block;
+  }
+</style>
+
+      ]]>
+    </file>
+    <file path="templates/frontends/svelte/src/vite-env.d.ts.tmpl">
+      <![CDATA[
+/// <reference types="svelte" />
+/// <reference types="vite/client" />
+
+      ]]>
+    </file>
+    <file path="templates/frontends/svelte/src/main.ts.tmpl">
+      <![CDATA[
+import { mount } from 'svelte'
+import App from './App.svelte'
+
+const app = mount(App, {
+  target: document.getElementById('app')!,
+})
+
+export default app
+
+      ]]>
+    </file>
+    <file path="templates/frontends/svelte/tsconfig.json.tmpl">
+      <![CDATA[
+{
+  "extends": "@tsconfig/svelte/tsconfig.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "checkJs": true,
+    "isolatedModules": true,
+    "moduleResolution": "bundler",
+    "strict": true,
+    "sourceMap": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
+}
+
+      ]]>
+    </file>
+    <file path="templates/contracts/proto/ping/v1/ping.proto.tmpl">
+      <![CDATA[
+syntax = "proto3";
+
+package ping.v1;
+
+option go_package = "{{ .ProjectName }}/pkg/pb/ping/v1;pingv1";
+
+service PingService {
+  rpc Ping(PingRequest) returns (PingResponse) {}
+}
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingResponse {
+  string response = 1;
+}
+
+      ]]>
+    </file>
+    <file path="templates/contracts/proto/buf.gen.yaml.tmpl">
+      <![CDATA[
+version: v2
+plugins:
+  # --- Go Backend Plugins ---
+  - remote: buf.build/protocolbuffers/go:{{ .Versions.ProtocGenGoVersion }}
+    out: pkg/pb
+    opt: paths=source_relative
+  - remote: buf.build/connectrpc/go:{{ .Versions.ProtocGenConnectGoVersion }}
+    out: pkg/pb
+    opt: paths=source_relative
+
+{{- if .Features.HasSvelteUI }}
+  # --- TypeScript Frontend Plugins ---
+  - remote: buf.build/bufbuild/es:{{ .Versions.ProtobufGenEsVersion }}
+    out: src/lib/pb
+    opt: target=ts
+  - remote: buf.build/connectrpc/es:{{ .Versions.ConnectWebVersion }}
+    out: src/lib/pb
+    opt: target=ts
+{{- end }}
+
+      ]]>
+    </file>
+    <file path="templates/contracts/proto/internal/ping/ping.go.tmpl">
+      <![CDATA[
+package ping
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+
+	"connectrpc.com/connect"
+	
+	"{{ .ProjectName }}/pkg/pb/ping/v1"
+	"{{ .ProjectName }}/pkg/pb/ping/v1/pingv1connect"
+)
+
+// Server implements the pingv1connect.PingServiceHandler interface.
+type Server struct{}
+
+// Ping returns a simple greeting via ConnectRPC.
+func (s *Server) Ping(
+	ctx context.Context,
+	req *connect.Request[pingv1.PingRequest],
+) (*connect.Response[pingv1.PingResponse], error) {
+	
+	res := connect.NewResponse(&pingv1.PingResponse{
+		Response: fmt.Sprintf("Hello, %s!", req.Msg.Message),
+	})
+	
+	return res, nil
+}
+
+// NewHandler initializes the service and returns the HTTP path and handler.
+func NewHandler() (string, http.Handler) {
+	return pingv1connect.NewPingServiceHandler(&Server{})
+}
+
+      ]]>
+    </file>
+    <file path="templates/contracts/proto/buf.yaml.tmpl">
+      <![CDATA[
+version: v2
+name: buf.build/cephlodyne/{{ .ProjectName }}
+lint:
+  use:
+    - DEFAULT
+breaking:
+  use:
+    - FILE
+
+      ]]>
+    </file>
+    <file path="templates/backends/core/cmd/server/main.go.tmpl">
+      <![CDATA[
+package main
+
+import (
+	"net/http"
+	{{- if .Features.HasIAPAuth }}
+	"encoding/json"
+	{{- end }}
+
+	"github.com/cephlodyne/kit/api"
+	"github.com/cephlodyne/kit/ev"
+	"github.com/cephlodyne/kit/helmet"
+	"github.com/cephlodyne/kit/runner"
+	"github.com/cephlodyne/kit/trail"
+	{{- if .Features.HasIAPAuth }}
+	"github.com/cephlodyne/kit/auth"
+	{{- end }}
+
+{{- if .Features.HasConnectRPC }}
+	"{{ .ProjectName }}/internal/ping"
+{{- end }}
+{{- if .Features.HasSvelteUI }}
+	"{{ .ProjectName }}/internal/ui"
+{{- end }}
+)
+
+{{ if .Features.HasIAPAuth }}
+// DefaultChecker is a placeholder RBAC implementation
+type DefaultChecker struct{}
+
+func (c *DefaultChecker) HasPermission(ctx context.Context, identity, permission string) (bool, error) {
+	return true, nil
+}
+{{ end }}
+
+func main() {
+	isCloud := ev.IsCloud()
+	isProd := ev.IsProd()
+	trail.Setup(isCloud, isProd)
+
+	mux := api.NewMux()
+
+{{- if .Features.HasConnectRPC }}
+	pingPath, pingHandler := ping.NewHandler()
+	mux.Handle(pingPath, pingHandler)
+{{- end }}
+
+{{- if .Features.HasIAPAuth }}
+	// --- IAP Authentication Setup ---
+	authenticator := &auth.Authenticator{
+		Audience:    ev.GetOptional("IAP_AUDIENCE", ""),
+		IsCloud:     isCloud,
+		DevOverride: "dev-user@cephlodyne.com",
+		Checker:     &DefaultChecker{},
+	}
+	
+	mux.HandleFunc("GET /api/v1/me", authenticator.RequireAny(meHandler, "internal-access"))
+{{- end }}
+
+{{- if .Features.HasSvelteUI }}
+	mux.Handle("/", ui.Handler())
+	secureMux := helmet.New("/assets/", "/static/")(mux)
+{{- else }}
+	secureMux := helmet.New()(mux)
+{{- end }}
+
+	runner.Start(ev.GetOptional("PORT", "8080"), secureMux)
+}
+
+{{ if .Features.HasIAPAuth }}
+// meHandler exposes the underlying identity from the IAP JWT
+func meHandler(w http.ResponseWriter, r *http.Request) {
+	identity, ok := r.Context().Value(auth.IdentityKey).(string)
+	if !ok || identity == "" {
+		api.WriteError(w, r, http.StatusUnauthorized, "Unauthorized", "No valid identity found.")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"email": identity,
+	})
+}
+{{ end }}
+
+      ]]>
+    </file>
+    <file path="templates/backends/core/Dockerfile.tmpl">
+      <![CDATA[
+# syntax=docker/dockerfile:1.4
+ARG GO_IMAGE
+{{- if .Features.HasSvelteUI }}
+ARG NODE_IMAGE
+{{- end }}
+
+{{ if .Features.HasSvelteUI }}
+# --- Stage 1: UI Build (Offline) ---
+FROM ${NODE_IMAGE} AS ui-builder
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install
+
+COPY . .
+RUN pnpm build
+{{- end }}
+
+# --- Stage 2: Go Build (Vendored) ---
+FROM ${GO_IMAGE} AS go-builder
+WORKDIR /app
+
+COPY go.mod go.sum ./
+COPY vendor/ vendor/
+COPY . .
+
+{{- if .Features.HasSvelteUI }}
+COPY --from=ui-builder /app/dist ./internal/ui/dist
+{{- end }}
+
+# Build securely from the local vendor directory
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags="-w -s" -o server ./cmd/server
+
+# --- Stage 3: Final Minimal Runtime ---
+FROM scratch
+COPY --from=go-builder /etc/passwd /etc/passwd
+COPY --from=go-builder /app/server /server
+USER appuser
+ENV PORT=8080
+EXPOSE 8080
+ENTRYPOINT ["/server"]
+
+      ]]>
+    </file>
+    <file path="templates/backends/core/Makefile.tmpl">
+      <![CDATA[
+.PHONY: setup build run
+
+setup:
+	@echo "Syncing Go dependencies..."
+	go mod tidy
+	go mod vendor
+{{- if .Features.HasConnectRPC }}
+	@echo "Generating RPC Contracts..."
+	buf generate
+{{- end }}
+{{- if .Features.HasSvelteUI }}
+	@echo "Syncing Node dependencies..."
+	npm_config_offline=false pnpm install
+{{- end }}
+
+build:
+{{- if .Features.HasSvelteUI }}
+	pnpm build
+{{- end }}
+	go build -mod=vendor -o bin/server ./cmd/server
+
+run:
+	go run ./cmd/server
+
+      ]]>
+    </file>
+    <file path="templates/backends/core/go.mod.tmpl">
+      <![CDATA[
+module {{ .ProjectName }}
+
+go {{ .Versions.GoVersion }}
+
+require (
+	github.com/cephlodyne/kit {{ .Versions.KitVersion }}
+{{- if .Features.HasConnectRPC }}
+	connectrpc.com/connect latest
+{{- end }}
+)
+
+      ]]>
+    </file>
+    <file path="main.go">
+      <![CDATA[
+package main
+
+import (
+	"bytes"
+	"embed"
+	"flag"
+	"fmt"
+	"log"
+	"os/exec"
+	"strings"
+
+	"catalyst/internal/engine"
+	"catalyst/internal/patterns"
+)
+
+//go:embed templates
+var templatesFS embed.FS
+
+// Master versions matching the zero-trust base-images strictly
+const (
+	ProtobufGenEsVersion    = "2.12.1"
+	VitePluginSvelteVersion = "7.2.0"
+	TSConfigSvelteVersion   = "5.0.8"
+	SvelteVersion           = "5.56.5"
+	SvelteCheckVersion      = "4.7.3"
+	SveltePreprocessVersion = "6.0.5"
+	TypeScriptVersion       = "7.0.2"
+	TSLibVersion            = "2.8.1"
+	ViteVersion             = "8.1.4"
+	ProtobufVersion         = "2.12.1"
+	ConnectWebVersion       = "2.1.2"
+	KitVersion              = "v0.2.0"
+)
+
+// getSystemVersion runs a command and returns the trimmed output
+func getSystemVersion(name string, args ...string) string {
+	cmd := exec.Command(name, args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("failed to get system version for %s: %v", name, err)
+	}
+	return strings.TrimSpace(out.String())
+}
+
+func getDynamicVersions() patterns.Versions {
+	goVer := strings.TrimPrefix(getSystemVersion("go", "env", "GOVERSION"), "go")
+	nodeVer := strings.TrimPrefix(getSystemVersion("node", "--version"), "v")
+	pnpmVer := getSystemVersion("pnpm", "--version")
+
+	return patterns.Versions{
+		GoVersion:               goVer,
+		NodeVersion:             nodeVer,
+		PnpmVersion:             pnpmVer,
+		ProtobufGenEsVersion:    ProtobufGenEsVersion,
+		VitePluginSvelteVersion: VitePluginSvelteVersion,
+		TSConfigSvelteVersion:   TSConfigSvelteVersion,
+		SvelteVersion:           SvelteVersion,
+		SvelteCheckVersion:      SvelteCheckVersion,
+		SveltePreprocessVersion: SveltePreprocessVersion,
+		TypeScriptVersion:       TypeScriptVersion,
+		TSLibVersion:            TSLibVersion,
+		ViteVersion:             ViteVersion,
+		ProtobufVersion:         ProtobufVersion,
+		ConnectWebVersion:       ConnectWebVersion,
+		KitVersion:              KitVersion,
+	}
+}
+
+func main() {
+	patternFlag := flag.String("pattern", "", "The pattern to generate (e.g., external_web, api, internal_admin)")
+	nameFlag := flag.String("name", "myapp", "The Go module name")
+	dirFlag := flag.String("dir", "./output", "Target directory")
+	flag.Parse()
+
+	if *patternFlag == "" {
+		log.Fatal("Error: --pattern is required")
+	}
+
+	pattern, ok := patterns.Registry[*patternFlag]
+	if !ok {
+		log.Fatalf("Error: unknown pattern '%s'", *patternFlag)
+	}
+
+	data := patterns.TemplateData{
+		ProjectName: *nameFlag,
+		Features:    pattern.Features,
+		Versions:    getDynamicVersions(),
+	}
+
+	fmt.Printf("Generating %s in %s...\n", pattern.ID, *dirFlag)
+
+	if err := engine.Generate(*dirFlag, data, pattern, templatesFS); err != nil {
+		log.Fatalf("Fatal error generating template: %v", err)
+	}
+
+	fmt.Println("Done!")
+}
+
+      ]]>
+    </file>
+  </files>
+</repository_context>

@@ -1,0 +1,41 @@
+# syntax=docker/dockerfile:1.4
+ARG GO_IMAGE
+{{- if .Features.HasSvelteUI }}
+ARG NODE_IMAGE
+{{- end }}
+
+{{ if .Features.HasSvelteUI }}
+# --- Stage 1: UI Build (Offline) ---
+FROM ${NODE_IMAGE} AS ui-builder
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install
+
+COPY . .
+RUN pnpm build
+{{- end }}
+
+# --- Stage 2: Go Build (Vendored) ---
+FROM ${GO_IMAGE} AS go-builder
+WORKDIR /app
+
+COPY go.mod go.sum ./
+COPY vendor/ vendor/
+COPY . .
+
+{{- if .Features.HasSvelteUI }}
+COPY --from=ui-builder /app/dist ./internal/ui/dist
+{{- end }}
+
+# Build securely from the local vendor directory
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags="-w -s" -o server ./cmd/server
+
+# --- Stage 3: Final Minimal Runtime ---
+FROM scratch
+COPY --from=go-builder /etc/passwd /etc/passwd
+COPY --from=go-builder /app/server /server
+USER appuser
+ENV PORT=8080
+EXPOSE 8080
+ENTRYPOINT ["/server"]

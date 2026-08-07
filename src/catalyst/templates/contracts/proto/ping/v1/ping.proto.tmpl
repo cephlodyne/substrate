@@ -1,16 +1,17 @@
 syntax = "proto3";
+
 package ping.v1;
 
-option go_package = "CEPHLODYNE_APP_NAME/internal/gen/ping/v1;pingv1";
+option go_package = "{{ .ProjectName }}/pkg/pb/ping/v1;pingv1";
 
 service PingService {
-  rpc Ping (PingRequest) returns (PingResponse) {}
+  rpc Ping(PingRequest) returns (PingResponse) {}
 }
 
 message PingRequest {
-  string name = 1;
+  string message = 1;
 }
 
 message PingResponse {
-  string message = 1;
+  string response = 1;
 }

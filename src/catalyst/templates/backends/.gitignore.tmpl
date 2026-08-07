@@ -1,0 +1,18 @@
+# Binaries
+/bin/
+/server
+
+# Environment
+.env
+
+# Go workspace/vendor
+go.work
+go.work.sum
+vendor/
+
+{{ if .Features.HasSvelteUI }}
+# UI ignores
+node_modules/
+dist/
+.svelte-kit/
+{{ end }}
