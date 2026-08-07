@@ -34,18 +34,18 @@ COLIMA_SHA="sha256:980ad8bf61a4ca370243f4cb41401a61276dcd2c2502bee7b9b86f9250169
 
 # Lima
 # sha: https://github.com/lima-vm/lima/releases
-LIMA_VERSION="v2.1.4"
+LIMA_VERSION="v2.2.0"
 LIMA_FILE="lima-${LIMA_VERSION#v}-Darwin-arm64.tar.gz"
 LIMA_URL="https://github.com/lima-vm/lima/releases/download/${LIMA_VERSION}/${LIMA_FILE}"
-LIMA_SHA="sha256:14c5b283f1c5eb4078e5a300b8d241f69197a3e41326dfc685a69c9455917acf"
+LIMA_SHA="sha256:bbdef91774885a0d05f7b048c4eb89ae2bcf3a0c252ae7ca7934e63df76d93c3"
 
 # Google Cloud SDK
 # look at the windows releases to see the version number
 # sha: https://cloud.google.com/sdk/docs/downloads-versioned-archives
-GCLOUD_VERSION="575.0"
+GCLOUD_VERSION="579.0.0"
 GCLOUD_FILE="google-cloud-cli-darwin-arm.tar.gz"
 GCLOUD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_FILE}"
-GCLOUD_SHA="b4edcca2e5312748ecf6235197970ed0944a2a1318d8aa268a3e3314e7d302b3"
+GCLOUD_SHA="7473a081d9b4cf78f250814dac7215090be5b0dd60c4628001967c2a8cfad60f"
 
 # Alacritty
 # sha: https://github.com/alacritty/alacritty/releases
@@ -56,10 +56,10 @@ ALACRITTY_SHA="sha256:ad8d7de35fb38e43184776cac6dfee05ca325caa0b6639a06a55e54e4b
 
 # JetBrains Mono Nerd Font
 # sha: https://github.com/ryanoasis/nerd-fonts/releases
-JB_MONO_VERSION="v3.4.0"
+JB_MONO_VERSION="v3.5.0"
 JB_MONO_FILE="JetBrainsMono.zip"
 JB_MONO_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${JB_MONO_VERSION}/${JB_MONO_FILE}"
-JB_MONO_SHA="76f05ff3ace48a464a6ca57977998784ff7bdbb65a6d915d7e401cd3927c493c"
+JB_MONO_SHA="sha256:9577de1ae84ec523df16fc69bac5338b89497a5b4fb91489e2dcb79dc06ac2b5"
 
 # --- Languages & Base Tools ---
 
@@ -71,33 +71,33 @@ GO_URL="https://go.dev/dl/${GO_FILE}"
 GO_SHA="efb87ff28af9a188d0536ef5d42e63dd52ba8263cd7344a993cc48dd11dedb6a"
 
 # Node.js
-NODE_VERSION="v24.18.0"
+NODE_VERSION="v24.19.0"
 NODE_FILE="node-${NODE_VERSION}-darwin-arm64.tar.xz"
 NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_FILE}"
 NODE_SHA_SOURCE="https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt"
 
 # Neovim
 # sha: https://github.com/neovim/neovim/releases
-NVIM_VERSION="v0.12.3"
+NVIM_VERSION="v0.12.4"
 NVIM_FILE="nvim-macos-arm64.tar.gz"
 NVIM_URL="https://github.com/neovim/neovim/releases/download/$NVIM_VERSION/${NVIM_FILE}"
-NVIM_SHA="sha256:532da1d00e465a660fa01c3d4991333d09c52107dce7df937368545daca0a14e"
+NVIM_SHA="sha256:51ab83afa66d663627c2ab1be43209b0f4e81360d4598b53efaa4d8195f24c89"
 
 # --- CLI Utilities ---
 
 # Ripgrep
 # sha: https://github.com/BurntSushi/ripgrep/releases
-RG_VERSION="15.1.0"
+RG_VERSION="15.2.0"
 RG_FILE="ripgrep-$RG_VERSION-aarch64-apple-darwin.tar.gz"
 RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/$RG_VERSION/${RG_FILE}"
-RG_SHA="sha256:378e973289176ca0c6054054ee7f631a065874a352bf43f0fa60ef079b6ba715"
+RG_SHA="sha256:3750b2e93f37e0c692657da574d7019a101c0084da05a790c83fd335bad973e4"
 
 # fd
 # sha: https://github.com/sharkdp/fd/releases
 FD_VERSION="v10.4.2"
 FD_FILE="fd-$FD_VERSION-aarch64-apple-darwin.tar.gz"
 FD_URL="https://github.com/sharkdp/fd/releases/download/$FD_VERSION/${FD_FILE}"
-FD_SHA="sha256:623dc0afc81b92e4d4606b380d7bc91916ba7b97814263e554d50923a39e480a"
+FD_SHA="sha256:3750b2e93f37e0c692657da574d7019a101c0084da05a790c83fd335bad973e4"
 
 # Protoc (Protocol Buffers Compiler)
 # sha: https://github.com/protocolbuffers/protobuf/releases
@@ -108,48 +108,48 @@ PROTOC_SHA="sha256:193289af0470c6a1aada357d4fba0bbf8d78bfaac8b5e42ca30af2ef75583
 
 # Tree-sitter
 # sha: https://github.com/tree-sitter/tree-sitter/releases
-TS_VERSION="v0.26.10"
+TS_VERSION="v0.26.11"
 TS_FILE="tree-sitter-macos-arm64.gz"
 TS_URL="https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/${TS_FILE}"
-TS_SHA="sha256:821a387182db59a1942a90a1fbd8f9756d9926e2c265f5c7b9a23c523114134a"
+TS_SHA="sha256:0bb646b2a29007233bd44855f00d0b8e238084d5b442f097d841b476318c2c90"
 
 # TruffleHog
 # sha: https://github.com/trufflesecurity/trufflehog/releases
-TRUFFLEHOG_VERSION="3.95.8"
+TRUFFLEHOG_VERSION="3.96.0"
 TRUFFLEHOG_FILE="trufflehog_${TRUFFLEHOG_VERSION}_darwin_arm64.tar.gz"
 TRUFFLEHOG_URL="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/${TRUFFLEHOG_FILE}"
-TRUFFLEHOG_SHA="sha256:d6ed1f34499b97aae275e400a207c6f5d5c25b0626ddc464b82c104a719cd33b"
+TRUFFLEHOG_SHA="sha256:87478306b95ca2420cfb844b7582383ac60b922e262350a0088e797f328d2e62"
 
 # Lazygit
 # sha: https://github.com/jesseduffield/lazygit/releases
-LAZYGIT_VERSION="v0.63.0"
+LAZYGIT_VERSION="v0.64.0"
 LAZYGIT_FILE="lazygit_${LAZYGIT_VERSION#v}_darwin_arm64.tar.gz"
 LAZYGIT_URL="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/${LAZYGIT_FILE}"
-LAZYGIT_SHA="sha256:60e6bf29a1501a57a9d078538aa576a1b4db45779db2e3dd6931a7207f560a9c"
+LAZYGIT_SHA="sha256:df8d2dd27cdc1075785f1abb85b74fe393fcdc1f3fdf6cb2b587feb3ce72ba33"
 
 # Tofu
 # sha: https://github.com/opentofu/opentofu/releases
-TOFU_VERSION="1.12.3"
+TOFU_VERSION="1.12.5"
 TOFU_FILE="tofu_${TOFU_VERSION}_darwin_arm64.zip"
 TOFU_URL="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/${TOFU_FILE}"
-TOFU_SHA="sha256:2b81c065cdcf5e573cfb5d9e0c663ac4cfc32512927078b645b58ef81cec2474"
+TOFU_SHA="sha256:dbb5a5bae9b0cabf622cd81a80ea02230eae8a3813215400df41a2cb89b47157"
 
 # Open Tofu LS
 # sha: https://github.com/opentofu/tofu-ls/releases
-TOFULS_VERSION="0.5.2"
+TOFULS_VERSION="0.5.3"
 TOFULS_FILE="tofu-ls_Darwin_arm64.tar.gz"
 TOFULS_URL="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERSION}/${TOFULS_FILE}"
-TOFULS_SHA="sha256:935852b3a3264d3a9ae6192c309beefe2de58b4fe2d4cceb19c110f6b82b9f60"
+TOFULS_SHA="sha256:391d2771a501ddc9a1f6575f57346f2653ff7df82d322a13c87147f38b8e0833"
 
 # Global Packages (Pinned for Zero-Trust Updates) ---
 
-GOPLS_VERSION="v0.22.0"
-GOIMPORTS_VERSION="v0.47.0"
-PNPM_VERSION="11.10.0"
-BIOME_VERSION="2.5.2"
+GOPLS_VERSION="v0.23.0"
+GOIMPORTS_VERSION="v0.48.0"
+PNPM_VERSION="11.20.0"
+BIOME_VERSION="2.5.7"
 
 # Code Generation Plugins
-BUF_VERSION="v1.48.0"
+BUF_VERSION="v1.72.0"
 PROTOC_GEN_GO_VERSION="v1.36.11"
 PROTOC_GEN_CONNECT_GO_VERSION="v1.18.1"
 PROTOC_GEN_ES_VERSION="2.2.3"
