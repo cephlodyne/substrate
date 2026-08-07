@@ -1,19 +1,16 @@
 version: v2
 plugins:
   # --- Go Backend Plugins ---
-  - remote: buf.build/protocolbuffers/go:{{ .Versions.ProtocGenGoVersion }}
+  - plugin: go
     out: pkg/pb
     opt: paths=source_relative
-  - remote: buf.build/connectrpc/go:{{ .Versions.ProtocGenConnectGoVersion }}
+  - plugin: connect-go
     out: pkg/pb
     opt: paths=source_relative
 
 {{- if .Features.HasSvelteUI }}
   # --- TypeScript Frontend Plugins ---
-  - remote: buf.build/bufbuild/es:{{ .Versions.ProtobufGenEsVersion }}
-    out: src/lib/pb
-    opt: target=ts
-  - remote: buf.build/connectrpc/es:{{ .Versions.ConnectWebVersion }}
+  - plugin: es
     out: src/lib/pb
     opt: target=ts
 {{- end }}

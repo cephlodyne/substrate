@@ -419,6 +419,13 @@ if needs_update "Buf" "$BUF_VERSION"; then
   mark_updated "Buf" "$BUF_VERSION"
 fi
 
+if needs_update "Go_Generators" "${PROTOC_GEN_GO_VERSION}_${PROTOC_GEN_CONNECT_GO_VERSION}"; then
+  echo "📦 Compiling Go Protobuf plugins securely (CGO disabled, strictly proxied)..."
+  env CGO_ENABLED=0 GOBIN="$BIN_DIR" GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org "$LOCAL_DIR/go/bin/go" install "google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION}"
+  env CGO_ENABLED=0 GOBIN="$BIN_DIR" GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org "$LOCAL_DIR/go/bin/go" install "connectrpc.com/connect/cmd/protoc-gen-connect-go@${PROTOC_GEN_CONNECT_GO_VERSION}"
+  mark_updated "Go_Generators" "${PROTOC_GEN_GO_VERSION}_${PROTOC_GEN_CONNECT_GO_VERSION}"
+fi
+
 if needs_update "Node_Generators" "$PROTOC_GEN_ES_VERSION"; then
   echo "📦 Installing Node Protobuf plugins securely via verified NPM binary..."
   # Install ONLY protoc-gen-es
@@ -509,15 +516,15 @@ SYS_RAM_GB=$(($(sysctl -n hw.memsize) / 1073741824))
 SYS_CPU_CORES=$(sysctl -n hw.ncpu)
 
 # Smart allocation:
-# - RAM: ~25-30% of total system RAM, minimum 2GB, max 8GB.
-# - CPU: Half of available cores, minimum 2, max 4.
-COLIMA_MEM=$((SYS_RAM_GB / 4))
-[ "$COLIMA_MEM" -lt 2 ] && COLIMA_MEM=2
-[ "$COLIMA_MEM" -gt 8 ] && COLIMA_MEM=8
+# - RAM: 50% of total system RAM, minimum 4GB, max 12GB.
+# - CPU: Half of available cores, minimum 2, max 6.
+COLIMA_MEM=$((SYS_RAM_GB / 2))
+[ "$COLIMA_MEM" -lt 4 ] && COLIMA_MEM=4
+[ "$COLIMA_MEM" -gt 12 ] && COLIMA_MEM=12
 
 COLIMA_CPU=$((SYS_CPU_CORES / 2))
 [ "$COLIMA_CPU" -lt 2 ] && COLIMA_CPU=2
-[ "$COLIMA_CPU" -gt 4 ] && COLIMA_CPU=4
+[ "$COLIMA_CPU" -gt 6 ] && COLIMA_CPU=6
 
 echo "   👉 Host has ${SYS_RAM_GB}GB RAM and ${SYS_CPU_CORES} CPUs."
 echo "   👉 Allocating ${COLIMA_MEM}GB RAM and ${COLIMA_CPU} CPUs to Colima."
