@@ -7,11 +7,20 @@ OUTPUT_FILE="files-consolidated.xml"
 TARGET_DIRS=()
 SIZE_WARNING_THRESHOLD=500000 # ~125k-150k LLM tokens
 
-# Standard directories to always ignore (saves traversal time and tokens)
-EXCLUDE_DIRS=("node_modules" "dist" "build" "public" "vendor" "bin" "__pycache__" "venv" ".venv" ".next" "out")
+# Standard directories to always ignore
+EXCLUDE_DIRS=("node_modules" "dist" "build" "public" "vendor" "bin" "__pycache__" "venv" ".venv" ".next" "out" ".git" ".idea" ".vscode" ".terraform" ".local")
 
-# Specific token-heavy/generated files that offer no logic value to LLMs
-EXCLUDE_FILES=("go.sum" "package-lock.json" "yarn.lock" "pnpm-lock.yaml" "poetry.lock" "*.tfstate" "*.tfstate.backup" "*.min.js" "*.min.css" "*.map" ".DS_Store")
+# Specific token-heavy, generated, OR SENSITIVE files
+EXCLUDE_FILES=(
+  # Dependencies & Generated
+  "go.sum" "package-lock.json" "yarn.lock" "pnpm-lock.yaml" "poetry.lock"
+  "*.tfstate" "*.tfstate.backup" "*.min.js" "*.min.css" "*.map" ".DS_Store"
+  ".terraform.lock.hcl" ".terraform.lock.hcl*"
+  # Secrets, Keys, and Environments (NEW)
+  "*.pem" "*.key" "*.crt" "*.cer" "*.p12" "*.pfx" "id_rsa*" ".env*" "secrets.*"
+  # Local Databases & Logs (NEW)
+  "*.sqlite" "*.sqlite3" "*.db" "*.log"
+)
 
 # --- Parse Arguments ---
 while [[ "$#" -gt 0 ]]; do
@@ -34,7 +43,6 @@ done
 if [ -z "$OUTPUT_FILE" ]; then
   OUTPUT_FILE="files-consolidated.xml"
 fi
-# Dynamically ignore the output file so we don't 'cat' it into itself
 EXCLUDE_FILES+=("$(basename "$OUTPUT_FILE")")
 
 if [ ${#TARGET_DIRS[@]} -gt 0 ]; then
@@ -46,15 +54,12 @@ fi
 # --- Build Prune & Exclude Logic ---
 PRUNE_LOGIC=()
 
-# 1. Prune all hidden directories (e.g., .git, .idea, .vscode) but keep '.' and '..'
-PRUNE_LOGIC+=("-type" "d" "-name" ".*" "!" "-name" "." "!" "-name" ".." "-prune" "-o")
-
-# 2. Prune specific heavy directories
+# Prune specific heavy/hidden directories
 for dir in "${EXCLUDE_DIRS[@]}"; do
   PRUNE_LOGIC+=("-type" "d" "-name" "$dir" "-prune" "-o")
 done
 
-# 3. Prune specific ignored files
+# Prune specific ignored/sensitive files
 for file in "${EXCLUDE_FILES[@]}"; do
   PRUNE_LOGIC+=("-name" "$file" "-prune" "-o")
 done
@@ -65,8 +70,6 @@ echo "📝 Output will be saved to: $OUTPUT_FILE"
 # --- Execute Find & Filter Binaries ---
 FILES=()
 while IFS= read -r -d '' file_path; do
-  # Check if the file is binary using its mime-encoding
-  # If it is NOT binary, add it to our array
   if ! file -b --mime-encoding "$file_path" | grep -q "binary"; then
     FILES+=("$file_path")
   fi
@@ -82,7 +85,6 @@ fi
 echo "📦 Compiling $FILE_COUNT text file(s) into LLM context format..."
 
 # --- Write LLM Optimized Output ---
-# Ensure the destination directory exists before writing
 mkdir -p "$(dirname "$OUTPUT_FILE")" || {
   echo "❌ FATAL: Could not create directory for $OUTPUT_FILE"
   exit 1
@@ -136,14 +138,12 @@ for file_path in "${FILES[@]}"; do
 
   echo -ne "\r⏳ Processing ($count/$FILE_COUNT): $display_path\033[K" >&2
 
-  # Wrap in XML and CDATA tags to prevent syntax characters from breaking the XML tree
   echo "    <file path=\"$display_path\">" >>"$OUTPUT_FILE"
   echo "      <![CDATA[" >>"$OUTPUT_FILE"
 
-  # Inject the raw file contents
-  cat "$file_path" >>"$OUTPUT_FILE"
+  # Inject raw file contents AND safely escape ']]>' to prevent XML breakage
+  sed 's/]]>/]]]]><![CDATA[>/g' "$file_path" >>"$OUTPUT_FILE"
 
-  # Ensure there is a newline before closing CDATA in case the file doesn't end with one
   echo "" >>"$OUTPUT_FILE"
   echo "      ]]>" >>"$OUTPUT_FILE"
   echo "    </file>" >>"$OUTPUT_FILE"
