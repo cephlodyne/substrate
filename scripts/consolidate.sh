@@ -8,13 +8,14 @@ TARGET_DIRS=()
 SIZE_WARNING_THRESHOLD=500000 # ~125k-150k LLM tokens
 
 # Standard directories to always ignore
-EXCLUDE_DIRS=("node_modules" "dist" "build" "public" "vendor" "bin" "__pycache__" "venv" ".venv" ".next" "out" ".git" ".idea" ".vscode")
+EXCLUDE_DIRS=("node_modules" "dist" "build" "public" "vendor" "bin" "__pycache__" "venv" ".venv" ".next" "out" ".git" ".idea" ".vscode" ".terraform" ".local")
 
 # Specific token-heavy, generated, OR SENSITIVE files
 EXCLUDE_FILES=(
   # Dependencies & Generated
   "go.sum" "package-lock.json" "yarn.lock" "pnpm-lock.yaml" "poetry.lock"
   "*.tfstate" "*.tfstate.backup" "*.min.js" "*.min.css" "*.map" ".DS_Store"
+  ".terraform.lock.hcl" ".terraform.lock.hcl*"
   # Secrets, Keys, and Environments (NEW)
   "*.pem" "*.key" "*.crt" "*.cer" "*.p12" "*.pfx" "id_rsa*" ".env*" "secrets.*"
   # Local Databases & Logs (NEW)
