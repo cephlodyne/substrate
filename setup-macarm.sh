@@ -42,10 +42,10 @@ LIMA_SHA="sha256:bbdef91774885a0d05f7b048c4eb89ae2bcf3a0c252ae7ca7934e63df76d93c
 # Google Cloud SDK
 # look at the windows releases to see the version number
 # sha: https://cloud.google.com/sdk/docs/downloads-versioned-archives
-GCLOUD_VERSION="579.0.0"
+GCLOUD_VERSION="580.0.0"
 GCLOUD_FILE="google-cloud-cli-darwin-arm.tar.gz"
 GCLOUD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_FILE}"
-GCLOUD_SHA="7473a081d9b4cf78f250814dac7215090be5b0dd60c4628001967c2a8cfad60f"
+GCLOUD_SHA="9c7d754cec05bee56d5b1bcb27b90f002833bb3fc62e48f66f6d504036328e4c"
 
 # Alacritty
 # sha: https://github.com/alacritty/alacritty/releases
@@ -65,10 +65,10 @@ JB_MONO_SHA="sha256:9577de1ae84ec523df16fc69bac5338b89497a5b4fb91489e2dcb79dc06a
 
 # Go
 # sha: https://go.dev/dl/
-GO_VERSION="1.26.5"
+GO_VERSION="1.26.6"
 GO_FILE="go${GO_VERSION}.darwin-arm64.tar.gz"
 GO_URL="https://go.dev/dl/${GO_FILE}"
-GO_SHA="efb87ff28af9a188d0536ef5d42e63dd52ba8263cd7344a993cc48dd11dedb6a"
+GO_SHA="2dc95ce4675829f2df0e86b28bcef3283635902062a5f0580ca659bf570f3204"
 
 # Node.js
 NODE_VERSION="v24.19.0"
