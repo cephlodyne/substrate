@@ -1,4 +1,4 @@
-.PHONY: setup build run
+.PHONY: setup build run dev audit
 
 setup:
 	@echo "Syncing Go dependencies..."
@@ -16,7 +16,15 @@ setup:
 	mkdir -p frontend/dist && touch frontend/dist/.keep
 {{- end }}
 
-build:
+audit:
+	@echo "🔍 Running Go Vulnerability Check..."
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+{{- if .Features.HasSvelteUI }}
+	@echo "🔍 Running Frontend Dependency Audit..."
+	cd frontend && pnpm audit
+{{- end }}
+
+build: audit
 {{- if .Features.HasSvelteUI }}
 	cd frontend && pnpm build
 {{- end }}
