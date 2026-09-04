@@ -8,6 +8,7 @@ type Features struct {
 	HasIAPAuth      bool
 	IsContractsRepo bool
 	IsWorkspace     bool
+	HasPostgres     bool
 }
 
 // Components automatically deduces which folders to pull from the embedded FS

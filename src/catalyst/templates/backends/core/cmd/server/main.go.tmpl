@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
+	"log/slog"
+	"os"
+	{{- if or .Features.HasIAPAuth .Features.HasSvelteUI }}
 	"net/http"
-	{{- if .Features.HasIAPAuth }}
-	"encoding/json"
 	{{- end }}
 	{{- if .Features.HasSvelteUI }}
 	"io/fs"
@@ -13,13 +14,15 @@ import (
 
 	"github.com/cephlodyne/kit/api"
 	"github.com/cephlodyne/kit/ev"
+	"github.com/cephlodyne/kit/pg"
 	"github.com/cephlodyne/kit/runner"
+	"github.com/cephlodyne/kit/trail"
 	{{- if .Features.HasIAPAuth }}
 	"github.com/cephlodyne/kit/auth"
 	{{- end }}
 
 {{- if .Features.HasConnectRPC }}
-	"{{ .ProjectName }}/internal/ping"
+	// "{{ .ProjectName }}/internal/ping" // Uncomment once buf generate succeeds
 {{- end }}
 {{- if .Features.HasSvelteUI }}
 	"{{ .ProjectName }}/frontend"
@@ -36,11 +39,30 @@ func (c *DefaultChecker) HasPermission(ctx context.Context, identity, permission
 {{ end }}
 
 func main() {
+	// 1. Initialize environment and structured logging
+	isCloud := ev.IsCloud()
+	isProd := ev.IsProd()
+	trail.Setup(isCloud, isProd)
+
+	ctx := context.Background()
+	slog.Info("Booting {{ .ProjectName }} backend...")
+
+	// 2. Database Connection (Fixed pg.Config struct)
+	dsn := ev.GetOptional("DB_MAIN_DSN", "postgres://{{ .ProjectName }}_sa:local-dev-password@localhost:5432/{{ .ProjectName }}_main?sslmode=disable")
+	pool, err := pg.Connect(ctx, pg.Config{DSN: dsn})
+	if err != nil {
+		slog.Error("failed to connect to database", "err", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+	slog.Info("✅ Successfully connected to Postgres!")
+
+	// 3. Initialize API Multiplexer
 	mux := api.NewMux()
 
 {{- if .Features.HasConnectRPC }}
-	pingPath, pingHandler := ping.NewHandler()
-	mux.Handle(pingPath, pingHandler)
+	// pingPath, pingHandler := ping.NewHandler()
+	// mux.Handle(pingPath, pingHandler)
 {{- end }}
 
 {{- if .Features.HasIAPAuth }}
@@ -49,7 +71,7 @@ func main() {
 		Audience:    ev.GetOptional("IAP_AUDIENCE", ""),
 		IsCloud:     isCloud,
 		DevOverride: "dev-user@cephlodyne.com",
-		Checker:     &DefaultChecker{},
+		Checker:     &DefaultChecker{}, // TODO: Replace with auth.NewSQLChecker(pool, log)
 	}
 	
 	mux.HandleFunc("GET /api/v1/me", authenticator.RequireAny(api.AppHandler(handleGetIdentity).ServeHTTP, "internal-access"))
@@ -63,6 +85,7 @@ func main() {
 	mux.Handle("/", http.FileServer(http.FS(frontendFS)))
 {{- end }}
 
+	// 4. Start Server with graceful shutdown
 	runner.Serve(mux)
 }
 
@@ -75,8 +98,8 @@ func handleGetIdentity(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(map[string]string{
-		"email": identity,
-	})
+	// Using a raw byte write removes the need for the encoding/json import
+	_, err := w.Write([]byte(`{"email":"` + identity + `"}`))
+	return err
 }
 {{ end }}

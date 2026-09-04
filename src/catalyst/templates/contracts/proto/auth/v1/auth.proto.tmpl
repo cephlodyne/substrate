@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package cephlodyne.kit.auth.v1;
+
+import "google/protobuf/descriptor.proto";
+
+// These extensions allow us to define RBAC rules directly on our RPC methods.
+extend google.protobuf.MethodOptions {
+  string require_any_permission = 50000;
+  string require_all_permissions = 50001;
+}

@@ -140,7 +140,26 @@ echo ""
 echo "🔗 Linking modules to Go workspace..."
 # shellcheck disable=SC2086
 go work use $WORKSPACE_DIRS
+# ---------------------------------------------------------
+# NEW: Auto-Initialize Dependencies and RPC Contracts
+# ---------------------------------------------------------
+echo ""
+echo "⚙️  Initializing dependencies and generating RPC contracts..."
+for dir in $WORKSPACE_DIRS; do
+  # Remove the leading './' to make the path clean
+  clean_dir=${dir#./}
 
+  if [ -f "$clean_dir/Makefile" ]; then
+    echo "   ↳ Bootstrapping $clean_dir..."
+    (
+      cd "$clean_dir" || exit
+      # Ensure connectrpc is explicitly fetched before tidy runs
+      go get connectrpc.com/connect@v1.20.0 >/dev/null 2>&1 || true
+      # Run the setup target which handles tidy, buf generate, vendor, and pnpm
+      make setup >/dev/null 2>&1
+    )
+  fi
+done
 echo "========================================================"
 echo "✅ Monorepo '$PROJECT_NAME' generated successfully!"
 echo "========================================================"

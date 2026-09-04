@@ -36,6 +36,7 @@ var Registry = map[string]Pattern{
 		ID: "workspace",
 		Features: Features{
 			IsWorkspace: true,
+			HasPostgres: true,
 		},
 	},
 }
