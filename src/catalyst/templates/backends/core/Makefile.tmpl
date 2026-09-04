@@ -3,11 +3,12 @@
 setup:
 	@echo "Syncing Go dependencies..."
 	go mod tidy
-	go mod vendor
 {{- if .Features.HasConnectRPC }}
 	@echo "Generating RPC Contracts..."
 	buf generate {{ .ContractsDir }} --template buf.gen.yaml
 {{- end }}
+	@echo "Vendoring dependencies for zero-trust builds..."
+	GOWORK=off go mod vendor
 {{- if .Features.HasSvelteUI }}
 	@echo "Syncing Node dependencies..."
 	cd frontend && npm_config_offline=false pnpm install
@@ -27,7 +28,7 @@ run: build
 dev: setup
 {{- if .Features.HasSvelteUI }}
 	@echo "Starting rapid local development environment..."
-	@bash -c "trap 'kill %1' SIGINT; go run -mod=vendor ./cmd/server/main.go & cd frontend && pnpm dev"
+	@bash -c "trap 'kill %1' SIGINT; go run ./cmd/server/main.go & cd frontend && pnpm dev"
 {{- else }}
-	go run -mod=vendor ./cmd/server/main.go
+	go run ./cmd/server/main.go
 {{- end }}

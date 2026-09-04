@@ -32,4 +32,10 @@ var Registry = map[string]Pattern{
 			HasIAPAuth:    true,
 		},
 	},
+	"workspace": {
+		ID: "workspace",
+		Features: Features{
+			IsWorkspace: true,
+		},
+	},
 }
