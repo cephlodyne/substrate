@@ -4,6 +4,9 @@ managed:
   override:
     - file_option: go_package_prefix
       value: {{ .ProjectName }}/pkg/pb
+    - file_option: go_package
+      value: github.com/cephlodyne/kit/auth/pb
+      path: auth/v1/auth.proto
 plugins:
   # --- Go Backend Plugins ---
   - local: protoc-gen-go
