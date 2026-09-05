@@ -14,7 +14,9 @@ import (
 
 	"github.com/cephlodyne/kit/api"
 	"github.com/cephlodyne/kit/ev"
+{{- if .Features.HasPostgres }}
 	"github.com/cephlodyne/kit/pg"
+{{- end }}
 	"github.com/cephlodyne/kit/runner"
 	"github.com/cephlodyne/kit/trail"
 	{{- if .Features.HasIAPAuth }}
@@ -47,6 +49,7 @@ func main() {
 	ctx := context.Background()
 	slog.Info("Booting {{ .ProjectName }} backend...")
 
+{{- if .Features.HasPostgres }}
 	// 2. Database Connection (Fixed pg.Config struct)
 	dsn := ev.GetOptional("DB_MAIN_DSN", "postgres://{{ .ProjectName }}_sa:local-dev-password@localhost:5432/{{ .ProjectName }}_main?sslmode=disable")
 	pool, err := pg.Connect(ctx, pg.Config{DSN: dsn})
@@ -56,8 +59,8 @@ func main() {
 	}
 	defer pool.Close()
 	slog.Info("✅ Successfully connected to Postgres!")
-
-	// 3. Initialize API Multiplexer
+{{- end }}
+  // 3. Initialize API Multiplexer
 	mux := api.NewMux()
 
 {{- if .Features.HasConnectRPC }}

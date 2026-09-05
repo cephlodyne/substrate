@@ -36,7 +36,7 @@ run: build
 dev: setup
 {{- if .Features.HasSvelteUI }}
 	@echo "Starting rapid local development environment..."
-	@bash -c "trap 'kill %1' SIGINT; go run ./cmd/server/main.go & cd frontend && pnpm dev"
+	@bash -c "trap 'kill %1' SIGINT; IS_CLOUD=false IS_PROD=false go run ./cmd/server/main.go & cd frontend && pnpm dev"
 {{- else }}
-	go run ./cmd/server/main.go
+	IS_CLOUD=false IS_PROD=false go run ./cmd/server/main.go
 {{- end }}
