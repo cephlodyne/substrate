@@ -10,7 +10,7 @@ FROM ${NODE_IMAGE} AS ui-builder
 WORKDIR /app/frontend
 
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
-RUN pnpm install
+RUN UV_THREADPOOL_SIZE=1 pnpm install --config.child-concurrency=1
 
 COPY frontend/ ./
 RUN pnpm build
