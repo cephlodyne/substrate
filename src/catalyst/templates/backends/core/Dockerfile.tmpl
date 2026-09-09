@@ -6,19 +6,22 @@ ARG NODE_IMAGE
 
 {{ if .Features.HasSvelteUI }}
 # --- Stage 1: UI Build (Offline) ---
-FROM ${NODE_IMAGE} AS ui-builder
+FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS ui-builder
 WORKDIR /app/frontend
 
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
-RUN UV_THREADPOOL_SIZE=1 pnpm install --config.child-concurrency=1
-
 COPY frontend/ ./
-RUN pnpm build
+RUN FRONTENDS="." strata-build-node
+
 {{- end }}
 
 # --- Stage 2: Go Build (Vendored) ---
-FROM ${GO_IMAGE} AS go-builder
+FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS go-builder
 WORKDIR /app
+
+# Pull in target architecture variables generated automatically by Docker
+ARG TARGETOS
+ARG TARGETARCH
 
 COPY go.mod go.sum ./
 COPY vendor/ vendor/
@@ -28,8 +31,11 @@ COPY . .
 COPY --from=ui-builder /app/frontend/dist ./frontend/dist
 {{- end }}
 
-# Build securely from the local vendor directory
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags="-w -s" -o server ./cmd/server
+# Delegate exact compliance checks and compilation to the Golden Image
+ENV GO_ENTRYPOINTS="cmd/server"
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/root/.cache/govulncheck \
+    strata-build-go
 
 # --- Stage 3: Final Minimal Runtime ---
 FROM scratch
