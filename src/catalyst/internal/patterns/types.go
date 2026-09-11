@@ -5,18 +5,21 @@ package patterns
 type Features struct {
 	HasSvelteUI     bool
 	HasConnectRPC   bool
-	HasIAPAuth      bool // Triggers kit/auth injection
+	HasIAPAuth      bool
 	IsContractsRepo bool
+	IsWorkspace     bool
+	HasPostgres     bool
 }
 
 // Components automatically deduces which folders to pull from the embedded FS
 func (f Features) Components() []string {
-	// If it's a contracts repo, ONLY scaffold the contracts
 	if f.IsContractsRepo {
 		return []string{"contracts/proto"}
 	}
+	if f.IsWorkspace {
+		return []string{"workspace"}
+	}
 
-	// Otherwise, scaffold the backend and frontend
 	comps := []string{"backends/core"}
 	if f.HasSvelteUI {
 		comps = append(comps, "frontends/svelte")

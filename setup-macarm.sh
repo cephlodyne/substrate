@@ -42,10 +42,10 @@ LIMA_SHA="sha256:bbdef91774885a0d05f7b048c4eb89ae2bcf3a0c252ae7ca7934e63df76d93c
 # Google Cloud SDK
 # look at the windows releases to see the version number
 # sha: https://cloud.google.com/sdk/docs/downloads-versioned-archives
-GCLOUD_VERSION="580.0.0"
+GCLOUD_VERSION="584.0.0"
 GCLOUD_FILE="google-cloud-cli-darwin-arm.tar.gz"
 GCLOUD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_FILE}"
-GCLOUD_SHA="9c7d754cec05bee56d5b1bcb27b90f002833bb3fc62e48f66f6d504036328e4c"
+GCLOUD_SHA="7719aba6d853621281d7c70c71bf9ed92958da634f51f501d05b07cd48029a0d"
 
 # Alacritty
 # sha: https://github.com/alacritty/alacritty/releases
@@ -56,32 +56,32 @@ ALACRITTY_SHA="sha256:ad8d7de35fb38e43184776cac6dfee05ca325caa0b6639a06a55e54e4b
 
 # JetBrains Mono Nerd Font
 # sha: https://github.com/ryanoasis/nerd-fonts/releases
-JB_MONO_VERSION="v3.5.0"
+JB_MONO_VERSION="v3.5.1"
 JB_MONO_FILE="JetBrainsMono.zip"
 JB_MONO_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${JB_MONO_VERSION}/${JB_MONO_FILE}"
-JB_MONO_SHA="sha256:9577de1ae84ec523df16fc69bac5338b89497a5b4fb91489e2dcb79dc06ac2b5"
+JB_MONO_SHA="sha256:fab782a66f7d3019da64f6572db9fc5d3a4bcb19f9fa13e2d8a62e3693d6396e"
 
 # --- Languages & Base Tools ---
 
 # Go
 # sha: https://go.dev/dl/
-GO_VERSION="1.26.6"
+GO_VERSION="1.27.1"
 GO_FILE="go${GO_VERSION}.darwin-arm64.tar.gz"
 GO_URL="https://go.dev/dl/${GO_FILE}"
-GO_SHA="2dc95ce4675829f2df0e86b28bcef3283635902062a5f0580ca659bf570f3204"
+GO_SHA="ee215d57e0ec269c60cc9ceca68e6bda321ba9ee5afe24f4b0988703c2d87d12"
 
 # Node.js
-NODE_VERSION="v24.19.0"
+NODE_VERSION="v24.21.0"
 NODE_FILE="node-${NODE_VERSION}-darwin-arm64.tar.xz"
 NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_FILE}"
 NODE_SHA_SOURCE="https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt"
 
 # Neovim
 # sha: https://github.com/neovim/neovim/releases
-NVIM_VERSION="v0.12.4"
+NVIM_VERSION="v0.12.5"
 NVIM_FILE="nvim-macos-arm64.tar.gz"
 NVIM_URL="https://github.com/neovim/neovim/releases/download/$NVIM_VERSION/${NVIM_FILE}"
-NVIM_SHA="sha256:51ab83afa66d663627c2ab1be43209b0f4e81360d4598b53efaa4d8195f24c89"
+NVIM_SHA="sha256:65fb000099e47ca1b762584c484cc833f40e30851a0ec450d4174e16317c1f9b"
 
 # --- CLI Utilities ---
 
@@ -94,24 +94,24 @@ RG_SHA="sha256:3750b2e93f37e0c692657da574d7019a101c0084da05a790c83fd335bad973e4"
 
 # fd
 # sha: https://github.com/sharkdp/fd/releases
-FD_VERSION="v10.4.2"
+FD_VERSION="v10.5.0"
 FD_FILE="fd-$FD_VERSION-aarch64-apple-darwin.tar.gz"
 FD_URL="https://github.com/sharkdp/fd/releases/download/$FD_VERSION/${FD_FILE}"
-FD_SHA="sha256:3750b2e93f37e0c692657da574d7019a101c0084da05a790c83fd335bad973e4"
+FD_SHA="sha256:b67e1836c468e42e411984b56e52fa7abec08c2bd22c867398e7cc134aac5e12"
 
 # Protoc (Protocol Buffers Compiler)
 # sha: https://github.com/protocolbuffers/protobuf/releases
-PROTOC_VERSION="35.1"
+PROTOC_VERSION="36.1"
 PROTOC_FILE="protoc-${PROTOC_VERSION}-osx-aarch_64.zip"
 PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_FILE}"
-PROTOC_SHA="sha256:193289af0470c6a1aada357d4fba0bbf8d78bfaac8b5e42ca30af2ef75583de2"
+PROTOC_SHA="sha256:de56d57afe30c5d191b11d24ff93dd4025728d7fb43b773886b2d3613e0bdbb2"
 
 # Tree-sitter
 # sha: https://github.com/tree-sitter/tree-sitter/releases
-TS_VERSION="v0.26.11"
+TS_VERSION="v0.27.0"
 TS_FILE="tree-sitter-macos-arm64.gz"
 TS_URL="https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/${TS_FILE}"
-TS_SHA="sha256:0bb646b2a29007233bd44855f00d0b8e238084d5b442f097d841b476318c2c90"
+TS_SHA="sha256:70f7573b2b2e5371a5b58cc5227d2ad981fd5374596b9874e770af486060774e"
 
 # TruffleHog
 # sha: https://github.com/trufflesecurity/trufflehog/releases
@@ -122,17 +122,17 @@ TRUFFLEHOG_SHA="sha256:87478306b95ca2420cfb844b7582383ac60b922e262350a0088e797f3
 
 # Lazygit
 # sha: https://github.com/jesseduffield/lazygit/releases
-LAZYGIT_VERSION="v0.64.0"
+LAZYGIT_VERSION="v0.65.0"
 LAZYGIT_FILE="lazygit_${LAZYGIT_VERSION#v}_darwin_arm64.tar.gz"
 LAZYGIT_URL="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/${LAZYGIT_FILE}"
-LAZYGIT_SHA="sha256:df8d2dd27cdc1075785f1abb85b74fe393fcdc1f3fdf6cb2b587feb3ce72ba33"
+LAZYGIT_SHA="sha256:d8ea1cade9e4279e45cbb58652e84edb07e98a9f8ec0604099c8b0a8f709e63a"
 
 # Tofu
 # sha: https://github.com/opentofu/opentofu/releases
-TOFU_VERSION="1.12.5"
+TOFU_VERSION="1.12.6"
 TOFU_FILE="tofu_${TOFU_VERSION}_darwin_arm64.zip"
 TOFU_URL="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/${TOFU_FILE}"
-TOFU_SHA="sha256:dbb5a5bae9b0cabf622cd81a80ea02230eae8a3813215400df41a2cb89b47157"
+TOFU_SHA="sha256:e083ee43790ab9e19ad66d9933e24a7244a1412e1d5728f37999ae2163fdac95"
 
 # Open Tofu LS
 # sha: https://github.com/opentofu/tofu-ls/releases
@@ -144,15 +144,15 @@ TOFULS_SHA="sha256:391d2771a501ddc9a1f6575f57346f2653ff7df82d322a13c87147f38b8e0
 # Global Packages (Pinned for Zero-Trust Updates) ---
 
 GOPLS_VERSION="v0.23.0"
-GOIMPORTS_VERSION="v0.48.0"
-PNPM_VERSION="11.20.0"
-BIOME_VERSION="2.5.7"
+GOIMPORTS_VERSION="v0.50.0"
+PNPM_VERSION="12.3.4"
+BIOME_VERSION="2.5.12"
 
 # Code Generation Plugins
-BUF_VERSION="v1.72.0"
+BUF_VERSION="v1.73.0"
 PROTOC_GEN_GO_VERSION="v1.36.11"
 PROTOC_GEN_CONNECT_GO_VERSION="v1.18.1"
-PROTOC_GEN_ES_VERSION="2.13.0"
+PROTOC_GEN_ES_VERSION="2.14.1"
 
 # ==============================================================================
 # Paths & Ledger Setup
@@ -317,7 +317,7 @@ fi
 
 if needs_update "NPM_Packages" "${PNPM_VERSION}_${BIOME_VERSION}"; then
   echo "📦 Installing Biome and pnpm securely via verified NPM binary..."
-  "$BIN_DIR/npm" install -g "pnpm@${PNPM_VERSION}" "@biomejs/biome@${BIOME_VERSION}"
+  "$BIN_DIR/npm" install -g --allow-scripts=pnpm "pnpm@${PNPM_VERSION}" "@biomejs/biome@${BIOME_VERSION}"
   ln -sf "$LOCAL_DIR/node/bin/pnpm" "$BIN_DIR/pnpm"
   ln -sf "$LOCAL_DIR/node/bin/pnpx" "$BIN_DIR/pnpx"
   mark_updated "NPM_Packages" "${PNPM_VERSION}_${BIOME_VERSION}"

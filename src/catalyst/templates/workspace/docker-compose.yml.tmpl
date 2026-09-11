@@ -1,0 +1,23 @@
+# Define volumes at the top so appending to this file falls under services!
+volumes:
+  pgdata:
+
+services:
+{{- if .Features.HasPostgres }}
+  postgres:
+    image: postgres:16-alpine
+    container_name: {{ .ProjectName }}-postgres
+    environment:
+      POSTGRES_DB: {{ .ProjectName }}_main
+      POSTGRES_USER: {{ .ProjectName }}_sa
+      POSTGRES_PASSWORD: local-dev-password
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ .ProjectName }}_sa -d {{ .ProjectName }}_main"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+{{- end }}
