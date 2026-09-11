@@ -115,7 +115,7 @@ if [ "$ui_type" = "1" ] || [ "$ui_type" = "2" ]; then
   if [[ -f "docker-compose.yml" ]]; then
     cat <<EOF >>docker-compose.yml
 
-  ui:
+ui:
     container_name: ${PROJECT_NAME}-frontend
     build:
       context: ./${DIR_FRONTEND}
@@ -123,6 +123,7 @@ if [ "$ui_type" = "1" ] || [ "$ui_type" = "2" ]; then
       args:
         NODE_IMAGE: ${GOLDEN_REGISTRY}/node:latest
         GO_IMAGE: ${GOLDEN_REGISTRY}/go:latest
+        NPM_TOKEN: \${NPM_TOKEN}
     environment:
       - IS_CLOUD=false
       - IS_PROD=false
@@ -140,26 +141,65 @@ echo ""
 echo "🔗 Linking modules to Go workspace..."
 # shellcheck disable=SC2086
 go work use $WORKSPACE_DIRS
+
 # ---------------------------------------------------------
-# NEW: Auto-Initialize Dependencies and RPC Contracts
+# Auto-Generate Root Makefile & Initialize
 # ---------------------------------------------------------
 echo ""
-echo "⚙️  Initializing dependencies and generating RPC contracts..."
-for dir in $WORKSPACE_DIRS; do
-  # Remove the leading './' to make the path clean
-  clean_dir=${dir#./}
+echo "📝 Generating master workspace Makefile..."
 
-  if [ -f "$clean_dir/Makefile" ]; then
-    echo "   ↳ Bootstrapping $clean_dir..."
-    (
-      cd "$clean_dir" || exit
-      # Ensure connectrpc is explicitly fetched before tidy runs
-      go get connectrpc.com/connect@v1.20.0 >/dev/null 2>&1 || true
-      # Run the setup target which handles tidy, buf generate, vendor, and pnpm
-      make setup >/dev/null 2>&1
-    )
-  fi
-done
+cat <<EOF >Makefile
+.PHONY: setup dev
+
+setup:
+EOF
+
+# Only fetch the NPM GAR token if a UI is included
+if [ "$ui_type" = "1" ] || [ "$ui_type" = "2" ]; then
+  cat <<EOF >>Makefile
+	@echo "🔑 Fetching GAR token for local development..."
+	@echo "NPM_TOKEN=\$\$(gcloud auth print-access-token)" > .env
+EOF
+fi
+
+cat <<EOF >>Makefile
+	@for dir in $WORKSPACE_DIRS; do \\
+		if [ -f "\$\$dir/Makefile" ]; then \\
+			echo ""; \\
+			echo "↳ Bootstrapping \$\$dir..."; \\
+			\$(MAKE) -C \$\$dir setup || exit 1; \\
+		fi; \\
+	done
+
+dev:
+EOF
+
+# Only refresh the GAR token on boot if a UI is included
+if [ "$ui_type" = "1" ] || [ "$ui_type" = "2" ]; then
+  cat <<EOF >>Makefile
+	@echo "🔑 Refreshing GAR token..."
+	@echo "NPM_TOKEN=\$\$(gcloud auth print-access-token)" > .env
+EOF
+fi
+
+# Dynamically decide how to boot based on whether docker-compose exists
+if [[ -f "docker-compose.yml" ]]; then
+  cat <<EOF >>Makefile
+	@echo "🐳 Booting local development environment..."
+	@docker-compose build --pull
+	@docker-compose up
+EOF
+else
+  cat <<EOF >>Makefile
+	@echo "🚀 Booting standalone backend..."
+	@if [ -d "$DIR_BACKEND" ]; then \$(MAKE) -C $DIR_BACKEND dev; fi
+EOF
+fi
+
+echo "⚙️  Initializing dependencies and generating RPC contracts..."
+make setup
+
 echo "========================================================"
 echo "✅ Monorepo '$PROJECT_NAME' generated successfully!"
+echo "👉 Simply run 'make dev' to boot the environment."
 echo "========================================================"

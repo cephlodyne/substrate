@@ -6,6 +6,9 @@ setup:
 	buf generate {{ .ContractsDir }} --template buf.gen.yaml
 {{- end }}
 	@echo "Syncing Go dependencies..."
+{{- if .Features.HasConnectRPC }}
+	@go get connectrpc.com/connect@v1.20.0 >/dev/null 2>&1 || true
+{{- end }}
 	go mod tidy
 	@echo "Vendoring dependencies for zero-trust builds..."
 	GOWORK=off go mod vendor
