@@ -317,7 +317,7 @@ fi
 
 if needs_update "NPM_Packages" "${PNPM_VERSION}_${BIOME_VERSION}"; then
   echo "📦 Installing Biome and pnpm securely via verified NPM binary..."
-  "$BIN_DIR/npm" install -g "pnpm@${PNPM_VERSION}" "@biomejs/biome@${BIOME_VERSION}"
+  "$BIN_DIR/npm" install -g --ignore-scripts=false "pnpm@${PNPM_VERSION}" "@biomejs/biome@${BIOME_VERSION}"
   ln -sf "$LOCAL_DIR/node/bin/pnpm" "$BIN_DIR/pnpm"
   ln -sf "$LOCAL_DIR/node/bin/pnpx" "$BIN_DIR/pnpx"
   mark_updated "NPM_Packages" "${PNPM_VERSION}_${BIOME_VERSION}"
