@@ -112,8 +112,8 @@ read -p "Select (1-5) [1]: " ui_type
 ui_type=${ui_type:-1}
 
 if [[ "$ui_type" =~ ^[1-4]$ ]]; then
-  read -p "   ↳ Directory name for Frontend [frontend]: " DIR_FRONTEND
-  DIR_FRONTEND=${DIR_FRONTEND:-frontend}
+  read -p "   ↳ Directory name for Web App [web]: " DIR_FRONTEND
+  DIR_FRONTEND=${DIR_FRONTEND:-web}
 
   if [ "$ui_type" = "1" ]; then
     echo "🖥️  Scaffolding Internal Admin UI (Svelte)..."
