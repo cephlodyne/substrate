@@ -4,27 +4,23 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
     {{- if .Features.HasConnectRPC }}
     "@bufbuild/protoc-gen-es": "{{ .Versions.ProtobufGenEsVersion }}",
     {{- end }}
-    "@sveltejs/vite-plugin-svelte": "{{ .Versions.VitePluginSvelteVersion }}",
-    "@tsconfig/svelte": "{{ .Versions.TSConfigSvelteVersion }}",
-    "svelte": "{{ .Versions.SvelteVersion }}",
-    "svelte-check": "{{ .Versions.SvelteCheckVersion }}",
-    "svelte-preprocess": "{{ .Versions.SveltePreprocessVersion }}",
-    "tslib": "{{ .Versions.TSLibVersion }}",
     "typescript": "{{ .Versions.TypeScriptVersion }}",
-    "vite": "{{ .Versions.ViteVersion }}"
-  }
-  {{- if .Features.HasConnectRPC }},
+    "vite": "{{ .Versions.ViteVersion }}",
+    "vite-plugin-solid": "{{ .Versions.VitePluginSolidVersion }}"
+  },
   "dependencies": {
+    "solid-js": "{{ .Versions.SolidVersion }}"
+    {{- if .Features.HasConnectRPC }},
     "@bufbuild/protobuf": "{{ .Versions.ProtobufVersion }}",
     "@connectrpc/connect": "{{ .Versions.ConnectWebVersion }}",
     "@connectrpc/connect-web": "{{ .Versions.ConnectWebVersion }}"
+    {{- end }}
   }
-  {{- end }}
 }

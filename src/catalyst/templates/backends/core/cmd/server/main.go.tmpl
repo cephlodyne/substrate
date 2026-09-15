@@ -4,10 +4,10 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	{{- if or .Features.HasIAPAuth .Features.HasSvelteUI }}
+	{{- if or .Features.HasIAPAuth .Features.HasFrontend }}
 	"net/http"
 	{{- end }}
-	{{- if .Features.HasSvelteUI }}
+	{{- if .Features.HasFrontend }}
 	"io/fs"
 	"log"
 	{{- end }}
@@ -26,7 +26,7 @@ import (
 {{- if .Features.HasConnectRPC }}
 	// "{{ .ProjectName }}/internal/ping" // Uncomment once buf generate succeeds
 {{- end }}
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 	"{{ .ProjectName }}/frontend"
 {{- end }}
 )
@@ -80,7 +80,7 @@ func main() {
 	mux.HandleFunc("GET /api/v1/me", authenticator.RequireAny(api.AppHandler(handleGetIdentity).ServeHTTP, "internal-access"))
 {{- end }}
 
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 	frontendFS, err := fs.Sub(frontend.FS, "dist")
 	if err != nil {
 		log.Fatal("failed to load embedded frontend filesystem: ", err)

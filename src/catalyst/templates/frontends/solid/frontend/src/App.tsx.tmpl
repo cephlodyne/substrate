@@ -1,0 +1,37 @@
+{{ if .Features.HasConnectRPC -}}
+import { createSignal, onMount } from "solid-js";
+import { createClient } from "@connectrpc/connect";
+import { createConnectTransport } from "@connectrpc/connect-web";
+import { PingService } from "./lib/pb/ping/v1/ping_pb";
+
+const transport = createConnectTransport({ baseUrl: "" });
+const client = createClient(PingService, transport);
+{{- else -}}
+import { createSignal } from "solid-js";
+{{- end }}
+
+export default function App() {
+  const [statusMessage, setStatusMessage] = createSignal("{{ if .Features.HasConnectRPC }}Pinging Go backend...{{ else }}UI loaded without RPC!{{ end }}");
+
+  {{ if .Features.HasConnectRPC -}}
+  onMount(async () => {
+    try {
+      const response = await client.ping({ message: "Strata Crowd" });
+      setStatusMessage(response.response);
+    } catch (error) {
+      setStatusMessage("API unreachable. Check terminal logs.");
+      console.error(error);
+    }
+  });
+  {{- end }}
+
+  return (
+    <main style="font-family: system-ui, sans-serif; text-align: center; padding: 2rem;">
+      <h1>{{ .ProjectName }}</h1>
+      <div style="background: #f4f4f5; padding: 1rem; border-radius: 8px; display: inline-block;">
+        <h2>Backend Status:</h2>
+        <p><strong>{statusMessage()}</strong></p>
+      </div>
+    </main>
+  );
+}

@@ -16,7 +16,7 @@ plugins:
     out: pkg/pb
     opt: paths=source_relative
 
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
   # --- TypeScript Frontend Plugins ---
   - local: protoc-gen-es
     out: frontend/src/lib/pb

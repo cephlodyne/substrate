@@ -39,4 +39,20 @@ var Registry = map[string]Pattern{
 			HasPostgres: true,
 		},
 	},
+	"external_web_solid": {
+		ID: "external_web_solid",
+		Features: Features{
+			HasSolidUI:    true,
+			HasConnectRPC: true,
+			HasIAPAuth:    false,
+		},
+	},
+	"internal_admin_solid": {
+		ID: "internal_admin_solid",
+		Features: Features{
+			HasSolidUI:    true,
+			HasConnectRPC: true,
+			HasIAPAuth:    true,
+		},
+	},
 }
