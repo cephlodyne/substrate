@@ -1,14 +1,17 @@
 <script lang="ts">
   import { onMount } from "svelte";
-import { createClient } from "@connectrpc/connect";
+  {{- if .Features.HasConnectRPC }}
+  import { createClient } from "@connectrpc/connect";
   import { createConnectTransport } from "@connectrpc/connect-web";
   import { PingService } from "./lib/pb/ping/v1/ping_pb";
 
   const transport = createConnectTransport({ baseUrl: "" });
   const client = createClient(PingService, transport);
+  {{- end }}
 
-  let statusMessage = "Pinging Go backend...";
+  let statusMessage = "{{ if .Features.HasConnectRPC }}Pinging Go backend...{{ else }}UI loaded without RPC!{{ end }}";
 
+  {{ if .Features.HasConnectRPC -}}
   onMount(async () => {
     try {
       const response = await client.ping({ message: "Strata Crowd" });
@@ -18,6 +21,7 @@ import { createClient } from "@connectrpc/connect";
       console.error(error);
     }
   });
+  {{- end }}
 </script>
 
 <main>

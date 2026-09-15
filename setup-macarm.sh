@@ -634,9 +634,9 @@ return {
   opts = function(_, opts)
     if type(opts.ensure_installed) == "table" then
       vim.list_extend(opts.ensure_installed, { 
-        "css", "html", "javascript", "typescript", "json",
+        "css", "html", "javascript", "typescript", "tsx", "json",
         "go", "gomod", "gowork", "gosum", 
-        "terraform", "hcl",
+        "terraform", "hcl", 
         "svelte"
       })
     end

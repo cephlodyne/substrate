@@ -8,7 +8,9 @@
     2. When suggesting changes, ONLY output the specific blocks or lines that need modification.
     3. Clearly state which file you are modifying and provide surrounding context (a few lines above and below).
     4. Think step-by-step: Briefly explain your reasoning BEFORE writing code.
-    5. Be direct, concise, and professional.
+    5. your code must be simple and DRY (do not repeat yourself).
+    6. When possible we do not want large single files/classes/components -- as part of being dry and enabiling readabilyt, when possible, you should break them up into smaller components, as long this doesnt decrease maintainability (b/c of interdependancy)
+    7. Be direct, concise, and professional.
   </system_instructions>
 
   <directory_structure>
@@ -57,6 +59,17 @@
             - v1/
               - ping.proto.tmpl
       - frontends/
+        - solid/
+          - .npmrc.tmpl
+          - App.tsx.tmpl
+          - embed.go.tmpl
+          - index.html.tmpl
+          - index.tsx.tmpl
+          - package.json.tmpl
+          - pnpm-workspace.yaml.tmpl
+          - tsconfig.json.tmpl
+          - vite-env.d.ts.tmpl
+          - vite.config.ts.tmpl
         - svelte/
           - .npmrc.tmpl
           - frontend/
@@ -80,6 +93,187 @@
   </directory_structure>
 
   <files>
+    <file path="src/catalyst/templates/frontends/solid/.npmrc.tmpl">
+      <![CDATA[
+always-auth=true
+frozen-lockfile=true
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/solid/App.tsx.tmpl">
+      <![CDATA[
+{{ if .Features.HasConnectRPC -}}
+import { createSignal, onMount } from "solid-js";
+import { createClient } from "@connectrpc/connect";
+import { createConnectTransport } from "@connectrpc/connect-web";
+import { PingService } from "./lib/pb/ping/v1/ping_pb";
+
+const transport = createConnectTransport({ baseUrl: "" });
+const client = createClient(PingService, transport);
+{{- else -}}
+import { createSignal } from "solid-js";
+{{- end }}
+
+export default function App() {
+  const [statusMessage, setStatusMessage] = createSignal("{{ if .Features.HasConnectRPC }}Pinging Go backend...{{ else }}UI loaded without RPC!{{ end }}");
+
+  {{ if .Features.HasConnectRPC -}}
+  onMount(async () => {
+    try {
+      const response = await client.ping({ message: "Strata Crowd" });
+      setStatusMessage(response.response);
+    } catch (error) {
+      setStatusMessage("API unreachable. Check terminal logs.");
+      console.error(error);
+    }
+  });
+  {{- end }}
+
+  return (
+    <main style="font-family: system-ui, sans-serif; text-align: center; padding: 2rem;">
+      <h1>{{ .ProjectName }}</h1>
+      <div style="background: #f4f4f5; padding: 1rem; border-radius: 8px; display: inline-block;">
+        <h2>Backend Status:</h2>
+        <p><strong>{statusMessage()}</strong></p>
+      </div>
+    </main>
+  );
+}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/solid/embed.go.tmpl">
+      <![CDATA[
+package frontend
+import "embed"
+//go:embed all:dist
+var FS embed.FS
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/solid/index.html.tmpl">
+      <![CDATA[
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ .ProjectName }}</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/index.tsx"></script>
+  </body>
+</html>
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/solid/index.tsx.tmpl">
+      <![CDATA[
+import { render } from 'solid-js/web'
+import App from './App'
+
+const root = document.getElementById('app')
+
+if (import.meta.env.DEV && !(root instanceof HTMLElement)) {
+  throw new Error('Root element not found. Did you forget to add it to your index.html?')
+}
+
+render(() => <App />, root!)
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/solid/package.json.tmpl">
+      <![CDATA[
+{
+  "name": "{{ .ProjectName }}-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    {{- if .Features.HasConnectRPC }}
+    "@bufbuild/protoc-gen-es": "{{ .Versions.ProtobufGenEsVersion }}",
+    {{- end }}
+    "typescript": "{{ .Versions.TypeScriptVersion }}",
+    "vite": "{{ .Versions.ViteVersion }}",
+    "vite-plugin-solid": "{{ .Versions.VitePluginSolidVersion }}"
+  },
+  "dependencies": {
+    "solid-js": "{{ .Versions.SolidVersion }}"
+    {{- if .Features.HasConnectRPC }},
+    "@bufbuild/protobuf": "{{ .Versions.ProtobufVersion }}",
+    "@connectrpc/connect": "{{ .Versions.ConnectWebVersion }}",
+    "@connectrpc/connect-web": "{{ .Versions.ConnectWebVersion }}"
+    {{- end }}
+  }
+}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/solid/pnpm-workspace.yaml.tmpl">
+      <![CDATA[
+allowBuilds:
+  esbuild: true
+  vite: true
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/solid/tsconfig.json.tmpl">
+      <![CDATA[
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "types": ["vite/client"],
+    "noEmit": true,
+    "isolatedModules": true,
+    "strict": true
+  },
+  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.tsx"]
+}
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/solid/vite-env.d.ts.tmpl">
+      <![CDATA[
+/// <reference types="vite/client" />
+
+      ]]>
+    </file>
+    <file path="src/catalyst/templates/frontends/solid/vite.config.ts.tmpl">
+      <![CDATA[
+import { defineConfig, loadEnv } from 'vite'
+import solidPlugin from 'vite-plugin-solid'
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiPort = env.API_PORT || '8080'
+
+  return {
+    plugins: [solidPlugin()],
+    clearScreen: false,
+    server: {
+      proxy: {
+        '^/.*Service/.*': {
+          target: `http://127.0.0.1:${apiPort}`,
+          changeOrigin: true,
+        }
+      }
+    }
+  }
+})
+
+      ]]>
+    </file>
     <file path=".gitignore">
       <![CDATA[
 /.DS_Store
@@ -196,19 +390,31 @@ if [ -z "${GOLDEN_REGISTRY:-}" ]; then
   echo ""
 fi
 
+if [ -z "${NPM_REGISTRY:-}" ]; then
+  read -p "❓ Enter your NPM Registry URL [https://us-central1-npm.pkg.dev/YOUR_PROJECT/golden-npm-store/]: " input_npm
+  NPM_REGISTRY=${input_npm:-"https://us-central1-npm.pkg.dev/YOUR_PROJECT/golden-npm-store/"}
+fi
+
 echo "🚀 Bootstrapping Zero-Trust Monorepo: $PROJECT_NAME in ./$TARGET_DIR..."
 mkdir -p "$TARGET_DIR" && cd "$TARGET_DIR"
 
 echo "📦 Initializing go.work..."
 go work init
 
-# 1. Contracts Setup (Required for schema-first)
+# 1. Contracts Setup
 echo ""
-read -p "❓ Directory name for Contracts API [contracts]: " DIR_CONTRACTS
-DIR_CONTRACTS=${DIR_CONTRACTS:-contracts}
-echo "📜 Scaffolding Contracts API..."
-ceph -pattern contracts -name "${PROJECT_NAME}-contracts" -dir "$DIR_CONTRACTS" >/dev/null
-WORKSPACE_DIRS="$WORKSPACE_DIRS ./$DIR_CONTRACTS"
+read -p "❓ Include a ConnectRPC Contracts API? (Y/n): " add_contracts
+if [[ "$add_contracts" =~ ^[Yy]?$ ]]; then
+  read -p "   ↳ Directory name for Contracts API [contracts]: " DIR_CONTRACTS
+  DIR_CONTRACTS=${DIR_CONTRACTS:-contracts}
+  echo "📜 Scaffolding Contracts API..."
+  ceph -pattern contracts -name "${PROJECT_NAME}-contracts" -dir "$DIR_CONTRACTS" >/dev/null
+  WORKSPACE_DIRS="$WORKSPACE_DIRS ./$DIR_CONTRACTS"
+  RPC_FLAG=""
+else
+  DIR_CONTRACTS="none"
+  RPC_FLAG="--no-rpc"
+fi
 
 # 2. Interactive Database Prompt
 echo ""
@@ -225,8 +431,9 @@ if [[ "$add_backend" =~ ^[Yy]?$ ]]; then
   read -p "   ↳ Directory name for Backend [backend]: " DIR_BACKEND
   DIR_BACKEND=${DIR_BACKEND:-backend}
   echo "⚙️  Scaffolding Backend..."
-  ceph -pattern api -name "${PROJECT_NAME}-backend" -dir "$DIR_BACKEND" -contracts "../$DIR_CONTRACTS" >/dev/null
+  ceph -pattern api -name "${PROJECT_NAME}-backend" -dir "$DIR_BACKEND" -contracts "../$DIR_CONTRACTS" -npm-registry "$NPM_REGISTRY" $RPC_FLAG >/dev/null
   cp "$DIR_BACKEND/.env.example" "$DIR_BACKEND/.env" 2>/dev/null || true
+
   WORKSPACE_DIRS="$WORKSPACE_DIRS ./$DIR_BACKEND"
 
   # Dynamically append to Docker Compose if it exists
@@ -257,23 +464,31 @@ fi
 # 4. Interactive Frontend Prompt
 echo ""
 echo "❓ What kind of UI do you need?"
-echo "   1) Internal Admin (IAP Protected)"
-echo "   2) External Web (Publicly accessible)"
-echo "   3) None"
-read -p "Select (1-3) [1]: " ui_type
+echo "   1) Internal Admin (Svelte, IAP Protected)"
+echo "   2) External Web (Svelte, Public)"
+echo "   3) Internal Admin (SolidJS, IAP Protected)"
+echo "   4) External Web (SolidJS, Public)"
+echo "   5) None"
+read -p "Select (1-5) [1]: " ui_type
 ui_type=${ui_type:-1}
 
-if [ "$ui_type" = "1" ] || [ "$ui_type" = "2" ]; then
+if [[ "$ui_type" =~ ^[1-4]$ ]]; then
   read -p "   ↳ Directory name for Frontend [frontend]: " DIR_FRONTEND
   DIR_FRONTEND=${DIR_FRONTEND:-frontend}
 
   if [ "$ui_type" = "1" ]; then
-    echo "🖥️  Scaffolding Internal Admin UI..."
-    ceph -pattern internal_admin -name "${PROJECT_NAME}-frontend" -dir "$DIR_FRONTEND" -contracts "../$DIR_CONTRACTS" >/dev/null
+    echo "🖥️  Scaffolding Internal Admin UI (Svelte)..."
+    ceph -pattern internal_admin -name "${PROJECT_NAME}-frontend" -dir "$DIR_FRONTEND" -contracts "../$DIR_CONTRACTS" -npm-registry "$NPM_REGISTRY" $RPC_FLAG >/dev/null
   elif [ "$ui_type" = "2" ]; then
-    echo "🖥️  Scaffolding External Web UI..."
-    ceph -pattern external_web -name "${PROJECT_NAME}-frontend" -dir "$DIR_FRONTEND" -contracts "../$DIR_CONTRACTS" >/dev/null
-  fi
+    echo "🖥️  Scaffolding External Web UI (Svelte)..."
+    ceph -pattern external_web -name "${PROJECT_NAME}-frontend" -dir "$DIR_FRONTEND" -contracts "../$DIR_CONTRACTS" -npm-registry "$NPM_REGISTRY" $RPC_FLAG >/dev/null
+  elif [ "$ui_type" = "3" ]; then
+    echo "🖥️  Scaffolding Internal Admin UI (SolidJS)..."
+    ceph -pattern internal_admin_solid -name "${PROJECT_NAME}-frontend" -dir "$DIR_FRONTEND" -contracts "../$DIR_CONTRACTS" -npm-registry "$NPM_REGISTRY" $RPC_FLAG >/dev/null
+  elif [ "$ui_type" = "4" ]; then
+    echo "🖥️  Scaffolding External Web UI (SolidJS)..."
+    ceph -pattern external_web_solid -name "${PROJECT_NAME}-frontend" -dir "$DIR_FRONTEND" -contracts "../$DIR_CONTRACTS" -npm-registry "$NPM_REGISTRY" $RPC_FLAG >/dev/null
+    fii
 
   cp "$DIR_FRONTEND/.env.example" "$DIR_FRONTEND/.env" 2>/dev/null || true
   WORKSPACE_DIRS="$WORKSPACE_DIRS ./$DIR_FRONTEND"
@@ -290,15 +505,22 @@ if [ "$ui_type" = "1" ] || [ "$ui_type" = "2" ]; then
       args:
         NODE_IMAGE: ${GOLDEN_REGISTRY}/node:latest
         GO_IMAGE: ${GOLDEN_REGISTRY}/go:latest
+        NPM_TOKEN: \${NPM_TOKEN}
     environment:
       - IS_CLOUD=false
       - IS_PROD=false
       - PORT=8081
     ports:
       - "8081:8081"
+EOF
+
+    # CRITICAL FIX: Only depend on API if it actually exists
+    if [[ "$add_backend" =~ ^[Yy]?$ ]]; then
+      cat <<EOF >>docker-compose.yml
     depends_on:
       - api
 EOF
+    fi
   fi
 fi
 
@@ -307,28 +529,79 @@ echo ""
 echo "🔗 Linking modules to Go workspace..."
 # shellcheck disable=SC2086
 go work use $WORKSPACE_DIRS
+
 # ---------------------------------------------------------
-# NEW: Auto-Initialize Dependencies and RPC Contracts
+# Auto-Generate Root Makefile & Initialize
 # ---------------------------------------------------------
 echo ""
-echo "⚙️  Initializing dependencies and generating RPC contracts..."
-for dir in $WORKSPACE_DIRS; do
-  # Remove the leading './' to make the path clean
-  clean_dir=${dir#./}
+echo "📝 Generating master workspace Makefile..."
 
-  if [ -f "$clean_dir/Makefile" ]; then
-    echo "   ↳ Bootstrapping $clean_dir..."
-    (
-      cd "$clean_dir" || exit
-      # Ensure connectrpc is explicitly fetched before tidy runs
-      go get connectrpc.com/connect@v1.20.0 >/dev/null 2>&1 || true
-      # Run the setup target which handles tidy, buf generate, vendor, and pnpm
-      make setup >/dev/null 2>&1
-    )
+cat <<EOF >Makefile
+.PHONY: setup dev
+
+setup:
+EOF
+
+# CRITICAL FIX: Update regex to 1-4
+if [[ "$ui_type" =~ ^[1-4]$ ]]; then
+  cat <<EOF >>Makefile
+	@echo "🔑 Fetching GAR token for local development..."
+	@echo "NPM_TOKEN=\$\$(gcloud auth print-access-token)" > .env
+EOF
+fi
+
+cat <<EOF >>Makefile
+	@for dir in $WORKSPACE_DIRS; do \\
+		if [ -f "\$\$dir/Makefile" ]; then \\
+			echo ""; \\
+			echo "↳ Bootstrapping \$\$dir..."; \\
+			\$(MAKE) -C \$\$dir setup || exit 1; \\
+		fi; \\
+	done
+
+dev:
+EOF
+
+# CRITICAL FIX: Update regex to 1-4
+if [[ "$ui_type" =~ ^[1-4]$ ]]; then
+  cat <<EOF >>Makefile
+	@echo "🔑 Refreshing GAR token..."
+	@echo "NPM_TOKEN=\$\$(gcloud auth print-access-token)" > .env
+EOF
+fi
+
+# CRITICAL FIX: Correctly boot standalone frontends when docker-compose doesn't exist
+if [[ -f "docker-compose.yml" ]]; then
+  cat <<EOF >>Makefile
+	@echo "🐳 Booting local development environment..."
+	@docker-compose build --pull
+	@docker-compose up
+EOF
+else
+  cat <<EOF >>Makefile
+	@echo "🚀 Booting standalone apps..."
+EOF
+  if [[ "$add_backend" =~ ^[Yy]?$ ]]; then
+    cat <<EOF >>Makefile
+	@if [ -d "$DIR_BACKEND" ]; then \$(MAKE) -C $DIR_BACKEND dev & fi
+EOF
   fi
-done
+  if [[ "$ui_type" =~ ^[1-4]$ ]]; then
+    cat <<EOF >>Makefile
+	@if [ -d "$DIR_FRONTEND" ]; then \$(MAKE) -C $DIR_FRONTEND dev & fi
+EOF
+  fi
+  cat <<EOF >>Makefile
+	@wait
+EOF
+fi
+
+echo "⚙️  Initializing dependencies and generating RPC contracts..."
+make setup
+
 echo "========================================================"
 echo "✅ Monorepo '$PROJECT_NAME' generated successfully!"
+echo "👉 Run 'make dev' to boot the environment."
 echo "========================================================"
 
       ]]>
@@ -971,7 +1244,9 @@ cat <<'EOF' >"$TEMP_FILE"
     2. When suggesting changes, ONLY output the specific blocks or lines that need modification.
     3. Clearly state which file you are modifying and provide surrounding context (a few lines above and below).
     4. Think step-by-step: Briefly explain your reasoning BEFORE writing code.
-    5. Be direct, concise, and professional.
+    5. your code must be simple and DRY (do not repeat yourself).
+    6. When possible we do not want large single files/classes/components -- as part of being dry and enabiling readabilyt, when possible, you should break them up into smaller components, as long this doesnt decrease maintainability (b/c of interdependancy)
+    7. Be direct, concise, and professional.
   </system_instructions>
 
   <directory_structure>
@@ -1838,9 +2113,9 @@ return {
   opts = function(_, opts)
     if type(opts.ensure_installed) == "table" then
       vim.list_extend(opts.ensure_installed, { 
-        "css", "html", "javascript", "typescript", "json",
+        "css", "html", "javascript", "typescript", "tsx", "json",
         "go", "gomod", "gowork", "gosum", 
-        "terraform", "hcl",
+        "terraform", "hcl", 
         "svelte"
       })
     end
@@ -2094,6 +2369,22 @@ var Registry = map[string]Pattern{
 			HasPostgres: true,
 		},
 	},
+	"external_web_solid": {
+		ID: "external_web_solid",
+		Features: Features{
+			HasSolidUI:    true,
+			HasConnectRPC: true,
+			HasIAPAuth:    false,
+		},
+	},
+	"internal_admin_solid": {
+		ID: "internal_admin_solid",
+		Features: Features{
+			HasSolidUI:    true,
+			HasConnectRPC: true,
+			HasIAPAuth:    true,
+		},
+	},
 }
 
       ]]>
@@ -2106,11 +2397,16 @@ package patterns
 // Features act as toggles for the text/template logic inside .tmpl files
 type Features struct {
 	HasSvelteUI     bool
+	HasSolidUI      bool
 	HasConnectRPC   bool
 	HasIAPAuth      bool
 	IsContractsRepo bool
 	IsWorkspace     bool
 	HasPostgres     bool
+}
+
+func (f Features) HasFrontend() bool {
+	return f.HasSolidUI || f.HasSvelteUI
 }
 
 // Components automatically deduces which folders to pull from the embedded FS
@@ -2126,6 +2422,9 @@ func (f Features) Components() []string {
 	if f.HasSvelteUI {
 		comps = append(comps, "frontends/svelte")
 	}
+	if f.HasSolidUI {
+		comps = append(comps, "frontends/solid")
+	}
 	return comps
 }
 
@@ -2140,6 +2439,8 @@ type Versions struct {
 	SvelteVersion           string
 	SvelteCheckVersion      string
 	SveltePreprocessVersion string
+	SolidVersion            string
+	VitePluginSolidVersion  string
 	TypeScriptVersion       string
 	TSLibVersion            string
 	ViteVersion             string
@@ -2154,6 +2455,8 @@ type TemplateData struct {
 	Features     Features
 	Versions     Versions
 	ContractsDir string
+	NPMRegistry  string
+	NPMAuthPath  string
 }
 
 // Pattern defines a specific architecture
@@ -2192,12 +2495,14 @@ const (
 	SvelteVersion           = "5.56.5"
 	SvelteCheckVersion      = "4.7.3"
 	SveltePreprocessVersion = "6.0.5"
+	SolidVersion            = "1.9.15"
+	VitePluginSolidVersion  = "2.11.14"
 	TypeScriptVersion       = "7.0.2"
 	TSLibVersion            = "2.8.1"
 	ViteVersion             = "8.1.4"
 	ProtobufVersion         = "2.12.1"
 	ConnectWebVersion       = "2.1.2"
-	KitVersion              = "v0.2.0"
+	KitVersion              = "v0.5.4"
 )
 
 // getSystemVersion runs a command and returns the trimmed output
@@ -2226,6 +2531,8 @@ func getDynamicVersions() patterns.Versions {
 		SvelteVersion:           SvelteVersion,
 		SvelteCheckVersion:      SvelteCheckVersion,
 		SveltePreprocessVersion: SveltePreprocessVersion,
+		SolidVersion:            SolidVersion,
+		VitePluginSolidVersion:  VitePluginSolidVersion,
 		TypeScriptVersion:       TypeScriptVersion,
 		TSLibVersion:            TSLibVersion,
 		ViteVersion:             ViteVersion,
@@ -2240,22 +2547,36 @@ func main() {
 	nameFlag := flag.String("name", "myapp", "The Go module name")
 	dirFlag := flag.String("dir", ".", "Target directory")
 	contractsFlag := flag.String("contracts", "../contracts", "Relative path to contracts repo")
+	npmFlag := flag.String("npm-registry", "https://us-central1-npm.pkg.dev/YOUR_PROJECT_ID/golden-npm-store/", "The NPM registry URL")
+	noRPCFlag := flag.Bool("no-rpc", false, "Disable ConnectRPC generation") // ADDED THIS
 	flag.Parse()
 
 	if *patternFlag == "" {
 		log.Fatal("Error: --pattern is required")
 	}
 
+	npmRegistry := *npmFlag
+	if !strings.HasSuffix(npmRegistry, "/") {
+		npmRegistry += "/"
+	}
+	npmAuthPath := strings.TrimPrefix(npmRegistry, "https:")
+
 	pattern, ok := patterns.Registry[*patternFlag]
+
 	if !ok {
-		log.Fatalf("Error: unknown pattern '%s'", *patternFlag)
+		log.Fatalf("fatal error: pattern '%s' not found", *patternFlag)
 	}
 
-	data := patterns.TemplateData{
-		ProjectName:  *nameFlag,
+	if *noRPCFlag {
+		pattern.Features.HasConnectRPC = false
+	}
+
+	data := patterns.TemplateData{ProjectName: *nameFlag,
 		Features:     pattern.Features,
 		Versions:     getDynamicVersions(),
-		ContractsDir: *contractsFlag, // Pass it to the engine here
+		ContractsDir: *contractsFlag,
+		NPMRegistry:  npmRegistry,
+		NPMAuthPath:  npmAuthPath,
 	}
 
 	fmt.Printf("Generating %s in %s...\n", pattern.ID, *dirFlag)
@@ -2283,7 +2604,7 @@ go.work
 go.work.sum
 vendor/
 
-{{ if .Features.HasSvelteUI }}
+{{ if .Features.HasFrontend }}
 # UI ignores
 node_modules/
 dist/
@@ -2298,7 +2619,7 @@ dist/
 .env
 vendor/
 
-{{ if .Features.HasSvelteUI }}
+{{ if .Features.HasFrontend }}
 # UI ignores
 package.json
 pnpm-lock.yaml
@@ -2313,19 +2634,24 @@ dist/
       <![CDATA[
 # syntax=docker/dockerfile:1.4
 ARG GO_IMAGE
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 ARG NODE_IMAGE
 {{- end }}
 
-{{ if .Features.HasSvelteUI }}
+{{ if .Features.HasFrontend }}
 # --- Stage 1: UI Build (Offline) ---
 FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS ui-builder
 WORKDIR /app/frontend
 
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 COPY frontend/ ./
-RUN FRONTENDS="." strata-build-node
 
+# Inject the auth token specifically for this Docker build step
+ARG NPM_TOKEN
+# Replace YOUR_PROJECT_ID with the actual Hub project ID
+RUN echo "//us-central1-npm.pkg.dev/YOUR_PROJECT_ID/golden-npm-store/:_authToken=\"${NPM_TOKEN}\"" >> .npmrc
+
+RUN FRONTENDS="." strata-build-node
 {{- end }}
 
 # --- Stage 2: Go Build (Vendored) ---
@@ -2340,7 +2666,7 @@ COPY go.mod go.sum ./
 COPY vendor/ vendor/
 COPY . .
 
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 COPY --from=ui-builder /app/frontend/dist ./frontend/dist
 {{- end }}
 
@@ -2371,10 +2697,13 @@ setup:
 	buf generate {{ .ContractsDir }} --template buf.gen.yaml
 {{- end }}
 	@echo "Syncing Go dependencies..."
+{{- if .Features.HasConnectRPC }}
+	@go get connectrpc.com/connect@v1.20.0 >/dev/null 2>&1 || true
+{{- end }}
 	go mod tidy
 	@echo "Vendoring dependencies for zero-trust builds..."
 	GOWORK=off go mod vendor
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 	@echo "Syncing Node dependencies..."
 	cd frontend && npm_config_offline=false pnpm install
 	@echo "Ensuring frontend dist directory exists for go:embed..."
@@ -2384,13 +2713,13 @@ setup:
 audit:
 	@echo "🔍 Running Go Vulnerability Check..."
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 	@echo "🔍 Running Frontend Dependency Audit..."
 	cd frontend && pnpm audit
 {{- end }}
 
 build: audit
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 	cd frontend && pnpm build
 {{- end }}
 	go build -mod=vendor -o bin/server ./cmd/server
@@ -2399,7 +2728,7 @@ run: build
 	./bin/server
 
 dev: setup
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 	@echo "Starting rapid local development environment..."
 	@bash -c "trap 'kill %1' SIGINT; IS_CLOUD=false IS_PROD=false go run ./cmd/server/main.go & cd frontend && pnpm dev"
 {{- else }}
@@ -2428,7 +2757,7 @@ plugins:
     out: pkg/pb
     opt: paths=source_relative
 
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
   # --- TypeScript Frontend Plugins ---
   - local: protoc-gen-es
     out: frontend/src/lib/pb
@@ -2445,10 +2774,10 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	{{- if or .Features.HasIAPAuth .Features.HasSvelteUI }}
+	{{- if or .Features.HasIAPAuth .Features.HasFrontend }}
 	"net/http"
 	{{- end }}
-	{{- if .Features.HasSvelteUI }}
+	{{- if .Features.HasFrontend }}
 	"io/fs"
 	"log"
 	{{- end }}
@@ -2467,7 +2796,7 @@ import (
 {{- if .Features.HasConnectRPC }}
 	// "{{ .ProjectName }}/internal/ping" // Uncomment once buf generate succeeds
 {{- end }}
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 	"{{ .ProjectName }}/frontend"
 {{- end }}
 )
@@ -2521,7 +2850,7 @@ func main() {
 	mux.HandleFunc("GET /api/v1/me", authenticator.RequireAny(api.AppHandler(handleGetIdentity).ServeHTTP, "internal-access"))
 {{- end }}
 
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 	frontendFS, err := fs.Sub(frontend.FS, "dist")
 	if err != nil {
 		log.Fatal("failed to load embedded frontend filesystem: ", err)
@@ -2655,11 +2984,9 @@ message PingResponse {
     </file>
     <file path="src/catalyst/templates/frontends/svelte/.npmrc.tmpl">
       <![CDATA[
-# Prioritize the offline zero-trust cache, but allow metadata fetching for fresh lockfile generation
-prefer-offline=true
-
-# Allow developers to generate lockfiles locally (Cloud Build strictly overrides this to true!)
-frozen-lockfile=false
+# Force authentication for the Golden Store
+always-auth=true
+frozen-lockfile=true
 
       ]]>
     </file>
@@ -2703,7 +3030,9 @@ var FS embed.FS
     "preview": "vite preview"
   },
   "devDependencies": {
+    {{- if .Features.HasConnectRPC }}
     "@bufbuild/protoc-gen-es": "{{ .Versions.ProtobufGenEsVersion }}",
+    {{- end }}
     "@sveltejs/vite-plugin-svelte": "{{ .Versions.VitePluginSvelteVersion }}",
     "@tsconfig/svelte": "{{ .Versions.TSConfigSvelteVersion }}",
     "svelte": "{{ .Versions.SvelteVersion }}",
@@ -2712,21 +3041,20 @@ var FS embed.FS
     "tslib": "{{ .Versions.TSLibVersion }}",
     "typescript": "{{ .Versions.TypeScriptVersion }}",
     "vite": "{{ .Versions.ViteVersion }}"
-  },
+  }
+  {{- if .Features.HasConnectRPC }},
   "dependencies": {
     "@bufbuild/protobuf": "{{ .Versions.ProtobufVersion }}",
     "@connectrpc/connect": "{{ .Versions.ConnectWebVersion }}",
     "@connectrpc/connect-web": "{{ .Versions.ConnectWebVersion }}"
   }
+  {{- end }}
 }
 
       ]]>
     </file>
     <file path="src/catalyst/templates/frontends/svelte/frontend/pnpm-workspace.yaml.tmpl">
       <![CDATA[
-# Supply Chain Security: Prevent pulling packages published in the last 24 hours
-minimumReleaseAge: 1440
-
 # Manage lifecycle script execution securely
 allowBuilds:
   esbuild: true
@@ -2738,15 +3066,18 @@ allowBuilds:
       <![CDATA[
 <script lang="ts">
   import { onMount } from "svelte";
-import { createClient } from "@connectrpc/connect";
+  {{- if .Features.HasConnectRPC }}
+  import { createClient } from "@connectrpc/connect";
   import { createConnectTransport } from "@connectrpc/connect-web";
   import { PingService } from "./lib/pb/ping/v1/ping_pb";
 
   const transport = createConnectTransport({ baseUrl: "" });
   const client = createClient(PingService, transport);
+  {{- end }}
 
-  let statusMessage = "Pinging Go backend...";
+  let statusMessage = "{{ if .Features.HasConnectRPC }}Pinging Go backend...{{ else }}UI loaded without RPC!{{ end }}";
 
+  {{ if .Features.HasConnectRPC -}}
   onMount(async () => {
     try {
       const response = await client.ping({ message: "Strata Crowd" });
@@ -2756,6 +3087,7 @@ import { createClient } from "@connectrpc/connect";
       console.error(error);
     }
   });
+  {{- end }}
 </script>
 
 <main>

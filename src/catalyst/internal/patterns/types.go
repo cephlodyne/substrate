@@ -4,11 +4,16 @@ package patterns
 // Features act as toggles for the text/template logic inside .tmpl files
 type Features struct {
 	HasSvelteUI     bool
+	HasSolidUI      bool
 	HasConnectRPC   bool
 	HasIAPAuth      bool
 	IsContractsRepo bool
 	IsWorkspace     bool
 	HasPostgres     bool
+}
+
+func (f Features) HasFrontend() bool {
+	return f.HasSolidUI || f.HasSvelteUI
 }
 
 // Components automatically deduces which folders to pull from the embedded FS
@@ -24,6 +29,9 @@ func (f Features) Components() []string {
 	if f.HasSvelteUI {
 		comps = append(comps, "frontends/svelte")
 	}
+	if f.HasSolidUI {
+		comps = append(comps, "frontends/solid")
+	}
 	return comps
 }
 
@@ -38,6 +46,8 @@ type Versions struct {
 	SvelteVersion           string
 	SvelteCheckVersion      string
 	SveltePreprocessVersion string
+	SolidVersion            string
+	VitePluginSolidVersion  string
 	TypeScriptVersion       string
 	TSLibVersion            string
 	ViteVersion             string
@@ -52,6 +62,8 @@ type TemplateData struct {
 	Features     Features
 	Versions     Versions
 	ContractsDir string
+	NPMRegistry  string
+	NPMAuthPath  string
 }
 
 // Pattern defines a specific architecture

@@ -29,19 +29,31 @@ if [ -z "${GOLDEN_REGISTRY:-}" ]; then
   echo ""
 fi
 
+if [ -z "${NPM_REGISTRY:-}" ]; then
+  read -p "❓ Enter your NPM Registry URL [https://us-central1-npm.pkg.dev/YOUR_PROJECT/golden-npm-store/]: " input_npm
+  NPM_REGISTRY=${input_npm:-"https://us-central1-npm.pkg.dev/YOUR_PROJECT/golden-npm-store/"}
+fi
+
 echo "🚀 Bootstrapping Zero-Trust Monorepo: $PROJECT_NAME in ./$TARGET_DIR..."
 mkdir -p "$TARGET_DIR" && cd "$TARGET_DIR"
 
 echo "📦 Initializing go.work..."
 go work init
 
-# 1. Contracts Setup (Required for schema-first)
+# 1. Contracts Setup
 echo ""
-read -p "❓ Directory name for Contracts API [contracts]: " DIR_CONTRACTS
-DIR_CONTRACTS=${DIR_CONTRACTS:-contracts}
-echo "📜 Scaffolding Contracts API..."
-ceph -pattern contracts -name "${PROJECT_NAME}-contracts" -dir "$DIR_CONTRACTS" >/dev/null
-WORKSPACE_DIRS="$WORKSPACE_DIRS ./$DIR_CONTRACTS"
+read -p "❓ Include a ConnectRPC Contracts API? (Y/n): " add_contracts
+if [[ "$add_contracts" =~ ^[Yy]?$ ]]; then
+  read -p "   ↳ Directory name for Contracts API [contracts]: " DIR_CONTRACTS
+  DIR_CONTRACTS=${DIR_CONTRACTS:-contracts}
+  echo "📜 Scaffolding Contracts API..."
+  ceph -pattern contracts -name "${PROJECT_NAME}-contracts" -dir "$DIR_CONTRACTS" >/dev/null
+  WORKSPACE_DIRS="$WORKSPACE_DIRS ./$DIR_CONTRACTS"
+  RPC_FLAG=""
+else
+  DIR_CONTRACTS="none"
+  RPC_FLAG="--no-rpc"
+fi
 
 # 2. Interactive Database Prompt
 echo ""
@@ -58,8 +70,9 @@ if [[ "$add_backend" =~ ^[Yy]?$ ]]; then
   read -p "   ↳ Directory name for Backend [backend]: " DIR_BACKEND
   DIR_BACKEND=${DIR_BACKEND:-backend}
   echo "⚙️  Scaffolding Backend..."
-  ceph -pattern api -name "${PROJECT_NAME}-backend" -dir "$DIR_BACKEND" -contracts "../$DIR_CONTRACTS" >/dev/null
+  ceph -pattern api -name "${PROJECT_NAME}-backend" -dir "$DIR_BACKEND" -contracts "../$DIR_CONTRACTS" -npm-registry "$NPM_REGISTRY" $RPC_FLAG >/dev/null
   cp "$DIR_BACKEND/.env.example" "$DIR_BACKEND/.env" 2>/dev/null || true
+
   WORKSPACE_DIRS="$WORKSPACE_DIRS ./$DIR_BACKEND"
 
   # Dynamically append to Docker Compose if it exists
@@ -90,22 +103,30 @@ fi
 # 4. Interactive Frontend Prompt
 echo ""
 echo "❓ What kind of UI do you need?"
-echo "   1) Internal Admin (IAP Protected)"
-echo "   2) External Web (Publicly accessible)"
-echo "   3) None"
-read -p "Select (1-3) [1]: " ui_type
+echo "   1) Internal Admin (Svelte, IAP Protected)"
+echo "   2) External Web (Svelte, Public)"
+echo "   3) Internal Admin (SolidJS, IAP Protected)"
+echo "   4) External Web (SolidJS, Public)"
+echo "   5) None"
+read -p "Select (1-5) [1]: " ui_type
 ui_type=${ui_type:-1}
 
-if [ "$ui_type" = "1" ] || [ "$ui_type" = "2" ]; then
+if [[ "$ui_type" =~ ^[1-4]$ ]]; then
   read -p "   ↳ Directory name for Frontend [frontend]: " DIR_FRONTEND
   DIR_FRONTEND=${DIR_FRONTEND:-frontend}
 
   if [ "$ui_type" = "1" ]; then
-    echo "🖥️  Scaffolding Internal Admin UI..."
-    ceph -pattern internal_admin -name "${PROJECT_NAME}-frontend" -dir "$DIR_FRONTEND" -contracts "../$DIR_CONTRACTS" >/dev/null
+    echo "🖥️  Scaffolding Internal Admin UI (Svelte)..."
+    ceph -pattern internal_admin -name "${PROJECT_NAME}-frontend" -dir "$DIR_FRONTEND" -contracts "../$DIR_CONTRACTS" -npm-registry "$NPM_REGISTRY" $RPC_FLAG >/dev/null
   elif [ "$ui_type" = "2" ]; then
-    echo "🖥️  Scaffolding External Web UI..."
-    ceph -pattern external_web -name "${PROJECT_NAME}-frontend" -dir "$DIR_FRONTEND" -contracts "../$DIR_CONTRACTS" >/dev/null
+    echo "🖥️  Scaffolding External Web UI (Svelte)..."
+    ceph -pattern external_web -name "${PROJECT_NAME}-frontend" -dir "$DIR_FRONTEND" -contracts "../$DIR_CONTRACTS" -npm-registry "$NPM_REGISTRY" $RPC_FLAG >/dev/null
+  elif [ "$ui_type" = "3" ]; then
+    echo "🖥️  Scaffolding Internal Admin UI (SolidJS)..."
+    ceph -pattern internal_admin_solid -name "${PROJECT_NAME}-frontend" -dir "$DIR_FRONTEND" -contracts "../$DIR_CONTRACTS" -npm-registry "$NPM_REGISTRY" $RPC_FLAG >/dev/null
+  elif [ "$ui_type" = "4" ]; then
+    echo "🖥️  Scaffolding External Web UI (SolidJS)..."
+    ceph -pattern external_web_solid -name "${PROJECT_NAME}-frontend" -dir "$DIR_FRONTEND" -contracts "../$DIR_CONTRACTS" -npm-registry "$NPM_REGISTRY" $RPC_FLAG >/dev/null
   fi
 
   cp "$DIR_FRONTEND/.env.example" "$DIR_FRONTEND/.env" 2>/dev/null || true
@@ -115,7 +136,7 @@ if [ "$ui_type" = "1" ] || [ "$ui_type" = "2" ]; then
   if [[ -f "docker-compose.yml" ]]; then
     cat <<EOF >>docker-compose.yml
 
-ui:
+  ui:
     container_name: ${PROJECT_NAME}-frontend
     build:
       context: ./${DIR_FRONTEND}
@@ -130,9 +151,15 @@ ui:
       - PORT=8081
     ports:
       - "8081:8081"
+EOF
+
+    # CRITICAL FIX: Only depend on API if it actually exists
+    if [[ "$add_backend" =~ ^[Yy]?$ ]]; then
+      cat <<EOF >>docker-compose.yml
     depends_on:
       - api
 EOF
+    fi
   fi
 fi
 
@@ -154,8 +181,8 @@ cat <<EOF >Makefile
 setup:
 EOF
 
-# Only fetch the NPM GAR token if a UI is included
-if [ "$ui_type" = "1" ] || [ "$ui_type" = "2" ]; then
+# CRITICAL FIX: Update regex to 1-4
+if [[ "$ui_type" =~ ^[1-4]$ ]]; then
   cat <<EOF >>Makefile
 	@echo "🔑 Fetching GAR token for local development..."
 	@echo "NPM_TOKEN=\$\$(gcloud auth print-access-token)" > .env
@@ -174,15 +201,15 @@ cat <<EOF >>Makefile
 dev:
 EOF
 
-# Only refresh the GAR token on boot if a UI is included
-if [ "$ui_type" = "1" ] || [ "$ui_type" = "2" ]; then
+# CRITICAL FIX: Update regex to 1-4
+if [[ "$ui_type" =~ ^[1-4]$ ]]; then
   cat <<EOF >>Makefile
 	@echo "🔑 Refreshing GAR token..."
 	@echo "NPM_TOKEN=\$\$(gcloud auth print-access-token)" > .env
 EOF
 fi
 
-# Dynamically decide how to boot based on whether docker-compose exists
+# CRITICAL FIX: Correctly boot standalone frontends when docker-compose doesn't exist
 if [[ -f "docker-compose.yml" ]]; then
   cat <<EOF >>Makefile
 	@echo "🐳 Booting local development environment..."
@@ -191,8 +218,20 @@ if [[ -f "docker-compose.yml" ]]; then
 EOF
 else
   cat <<EOF >>Makefile
-	@echo "🚀 Booting standalone backend..."
-	@if [ -d "$DIR_BACKEND" ]; then \$(MAKE) -C $DIR_BACKEND dev; fi
+	@echo "🚀 Booting standalone apps..."
+EOF
+  if [[ "$add_backend" =~ ^[Yy]?$ ]]; then
+    cat <<EOF >>Makefile
+	@if [ -d "$DIR_BACKEND" ]; then \$(MAKE) -C $DIR_BACKEND dev & fi
+EOF
+  fi
+  if [[ "$ui_type" =~ ^[1-4]$ ]]; then
+    cat <<EOF >>Makefile
+	@if [ -d "$DIR_FRONTEND" ]; then \$(MAKE) -C $DIR_FRONTEND dev & fi
+EOF
+  fi
+  cat <<EOF >>Makefile
+	@wait
 EOF
 fi
 
@@ -201,5 +240,5 @@ make setup
 
 echo "========================================================"
 echo "✅ Monorepo '$PROJECT_NAME' generated successfully!"
-echo "👉 Simply run 'make dev' to boot the environment."
+echo "👉 Run 'make dev' to boot the environment."
 echo "========================================================"

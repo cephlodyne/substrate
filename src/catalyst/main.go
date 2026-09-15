@@ -24,12 +24,14 @@ const (
 	SvelteVersion           = "5.56.5"
 	SvelteCheckVersion      = "4.7.3"
 	SveltePreprocessVersion = "6.0.5"
+	SolidVersion            = "1.9.15"
+	VitePluginSolidVersion  = "2.11.14"
 	TypeScriptVersion       = "7.0.2"
 	TSLibVersion            = "2.8.1"
 	ViteVersion             = "8.1.4"
 	ProtobufVersion         = "2.12.1"
 	ConnectWebVersion       = "2.1.2"
-	KitVersion              = "v0.2.0"
+	KitVersion              = "v0.5.4"
 )
 
 // getSystemVersion runs a command and returns the trimmed output
@@ -58,6 +60,8 @@ func getDynamicVersions() patterns.Versions {
 		SvelteVersion:           SvelteVersion,
 		SvelteCheckVersion:      SvelteCheckVersion,
 		SveltePreprocessVersion: SveltePreprocessVersion,
+		SolidVersion:            SolidVersion,
+		VitePluginSolidVersion:  VitePluginSolidVersion,
 		TypeScriptVersion:       TypeScriptVersion,
 		TSLibVersion:            TSLibVersion,
 		ViteVersion:             ViteVersion,
@@ -72,22 +76,36 @@ func main() {
 	nameFlag := flag.String("name", "myapp", "The Go module name")
 	dirFlag := flag.String("dir", ".", "Target directory")
 	contractsFlag := flag.String("contracts", "../contracts", "Relative path to contracts repo")
+	npmFlag := flag.String("npm-registry", "https://us-central1-npm.pkg.dev/YOUR_PROJECT_ID/golden-npm-store/", "The NPM registry URL")
+	noRPCFlag := flag.Bool("no-rpc", false, "Disable ConnectRPC generation") // ADDED THIS
 	flag.Parse()
 
 	if *patternFlag == "" {
 		log.Fatal("Error: --pattern is required")
 	}
 
+	npmRegistry := *npmFlag
+	if !strings.HasSuffix(npmRegistry, "/") {
+		npmRegistry += "/"
+	}
+	npmAuthPath := strings.TrimPrefix(npmRegistry, "https:")
+
 	pattern, ok := patterns.Registry[*patternFlag]
+
 	if !ok {
-		log.Fatalf("Error: unknown pattern '%s'", *patternFlag)
+		log.Fatalf("fatal error: pattern '%s' not found", *patternFlag)
 	}
 
-	data := patterns.TemplateData{
-		ProjectName:  *nameFlag,
+	if *noRPCFlag {
+		pattern.Features.HasConnectRPC = false
+	}
+
+	data := patterns.TemplateData{ProjectName: *nameFlag,
 		Features:     pattern.Features,
 		Versions:     getDynamicVersions(),
-		ContractsDir: *contractsFlag, // Pass it to the engine here
+		ContractsDir: *contractsFlag,
+		NPMRegistry:  npmRegistry,
+		NPMAuthPath:  npmAuthPath,
 	}
 
 	fmt.Printf("Generating %s in %s...\n", pattern.ID, *dirFlag)

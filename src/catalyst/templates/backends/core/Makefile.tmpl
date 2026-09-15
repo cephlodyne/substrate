@@ -12,7 +12,7 @@ setup:
 	go mod tidy
 	@echo "Vendoring dependencies for zero-trust builds..."
 	GOWORK=off go mod vendor
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 	@echo "Syncing Node dependencies..."
 	cd frontend && npm_config_offline=false pnpm install
 	@echo "Ensuring frontend dist directory exists for go:embed..."
@@ -22,13 +22,13 @@ setup:
 audit:
 	@echo "🔍 Running Go Vulnerability Check..."
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 	@echo "🔍 Running Frontend Dependency Audit..."
 	cd frontend && pnpm audit
 {{- end }}
 
 build: audit
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 	cd frontend && pnpm build
 {{- end }}
 	go build -mod=vendor -o bin/server ./cmd/server
@@ -37,7 +37,7 @@ run: build
 	./bin/server
 
 dev: setup
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 	@echo "Starting rapid local development environment..."
 	@bash -c "trap 'kill %1' SIGINT; IS_CLOUD=false IS_PROD=false go run ./cmd/server/main.go & cd frontend && pnpm dev"
 {{- else }}

@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1.4
 ARG GO_IMAGE
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 ARG NODE_IMAGE
 {{- end }}
 
-{{ if .Features.HasSvelteUI }}
+{{ if .Features.HasFrontend }}
 # --- Stage 1: UI Build (Offline) ---
 FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS ui-builder
 WORKDIR /app/frontend
@@ -32,7 +32,7 @@ COPY go.mod go.sum ./
 COPY vendor/ vendor/
 COPY . .
 
-{{- if .Features.HasSvelteUI }}
+{{- if .Features.HasFrontend }}
 COPY --from=ui-builder /app/frontend/dist ./frontend/dist
 {{- end }}
 
