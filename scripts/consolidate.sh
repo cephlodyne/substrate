@@ -145,8 +145,9 @@ cat <<'EOF' >"$TEMP_FILE"
     3. Clearly state which file you are modifying and provide surrounding context (a few lines above and below).
     4. Think step-by-step: Briefly explain your reasoning BEFORE writing code.
     5. your code must be simple and DRY (do not repeat yourself).
-    6. When possible we do not want large single files/classes/components -- as part of being dry and enabiling readabilyt, when possible, you should break them up into smaller components, as long this doesnt decrease maintainability (b/c of interdependancy)
-    7. Be direct, concise, and professional.
+    6. We do not want large single files/classes/components
+    7. frontends have strict cors policies, no inline styles, for example     
+    8. Be direct, concise, and professional.
   </system_instructions>
 
   <directory_structure>

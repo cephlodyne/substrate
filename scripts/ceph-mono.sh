@@ -181,7 +181,6 @@ cat <<EOF >Makefile
 setup:
 EOF
 
-# CRITICAL FIX: Update regex to 1-4
 if [[ "$ui_type" =~ ^[1-4]$ ]]; then
   cat <<EOF >>Makefile
 	@echo "🔑 Fetching GAR token for local development..."
@@ -201,7 +200,6 @@ cat <<EOF >>Makefile
 dev:
 EOF
 
-# CRITICAL FIX: Update regex to 1-4
 if [[ "$ui_type" =~ ^[1-4]$ ]]; then
   cat <<EOF >>Makefile
 	@echo "🔑 Refreshing GAR token..."
@@ -209,7 +207,6 @@ if [[ "$ui_type" =~ ^[1-4]$ ]]; then
 EOF
 fi
 
-# CRITICAL FIX: Correctly boot standalone frontends when docker-compose doesn't exist
 if [[ -f "docker-compose.yml" ]]; then
   cat <<EOF >>Makefile
 	@echo "🐳 Booting local development environment..."
@@ -219,19 +216,20 @@ EOF
 else
   cat <<EOF >>Makefile
 	@echo "🚀 Booting standalone apps..."
+	@bash -c "trap 'kill 0' EXIT; \\
 EOF
   if [[ "$add_backend" =~ ^[Yy]?$ ]]; then
     cat <<EOF >>Makefile
-	@if [ -d "$DIR_BACKEND" ]; then \$(MAKE) -C $DIR_BACKEND dev & fi
+		if [ -d '$DIR_BACKEND' ]; then \$(MAKE) -C $DIR_BACKEND dev & fi; \\
 EOF
   fi
   if [[ "$ui_type" =~ ^[1-4]$ ]]; then
     cat <<EOF >>Makefile
-	@if [ -d "$DIR_FRONTEND" ]; then \$(MAKE) -C $DIR_FRONTEND dev & fi
+		if [ -d '$DIR_FRONTEND' ]; then \$(MAKE) -C $DIR_FRONTEND dev & fi; \\
 EOF
   fi
   cat <<EOF >>Makefile
-	@wait
+		wait"
 EOF
 fi
 
