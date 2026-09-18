@@ -39,7 +39,7 @@ run: build
 dev: setup
 {{- if .Features.HasFrontend }}
 	@echo "Starting rapid local development environment..."
-	@bash -c "trap 'kill %1' SIGINT; IS_CLOUD=false IS_PROD=false go run ./cmd/server/main.go & cd frontend && pnpm dev"
+	@bash -c "trap 'kill 0' EXIT; IS_CLOUD=false IS_PROD=false go run ./cmd/server/main.go & cd frontend && pnpm dev"
 {{- else }}
 	IS_CLOUD=false IS_PROD=false go run ./cmd/server/main.go
 {{- end }}
