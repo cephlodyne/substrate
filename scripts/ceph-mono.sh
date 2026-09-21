@@ -229,6 +229,30 @@ EOF
 EOF
   fi
   cat <<EOF >>Makefile
+prod:
+EOF
+
+if [[ -f "docker-compose.yml" ]]; then
+  cat <<EOF >>Makefile
+	@echo "🐳 Booting local production environment..."
+	@IS_PROD=true docker-compose up --build
+EOF
+else
+  cat <<EOF >>Makefile
+	@echo "🚀 Booting standalone apps in PROD mode..."
+	@bash -c "trap 'kill 0' EXIT; \\
+EOF
+  if [[ "$add_backend" =~ ^[Yy]?$ ]]; then
+    cat <<EOF >>Makefile
+		if [ -d '$DIR_BACKEND' ]; then \$(MAKE) -C $DIR_BACKEND prod & fi; \\
+EOF
+  fi
+  if [[ "$ui_type" =~ ^[1-4]$ ]]; then
+    cat <<EOF >>Makefile
+		if [ -d '$DIR_FRONTEND' ]; then \$(MAKE) -C $DIR_FRONTEND prod & fi; \\
+EOF
+  fi
+  cat <<EOF >>Makefile
 		wait"
 EOF
 fi
