@@ -6,19 +6,17 @@
 OUTPUT_FILE="files-consolidated.xml"
 TARGET_DIRS=()
 SIZE_WARNING_THRESHOLD=500000 # ~125k-150k LLM tokens
+MAX_SINGLE_FILE_SIZE=256000   # 250KB limit per file to prevent rogue massive text files (like CSVs or unminified bundles)
 
-# Standard directories to always ignore (Used primarily for the 'find' fallback and now enforced in git loop)
+# Standard directories to always ignore
 EXCLUDE_DIRS=("node_modules" "dist" "build" "public" "vendor" "bin" "__pycache__" "venv" ".venv" ".next" "out" ".git" ".idea" ".vscode" ".terraform" ".local")
 
 # Specific token-heavy, generated, OR SENSITIVE files
 EXCLUDE_FILES=(
-  # Dependencies & Generated
   "go.sum" "package-lock.json" "yarn.lock" "pnpm-lock.yaml" "poetry.lock"
   "*.tfstate" "*.tfstate.backup" "*.min.js" "*.min.css" "*.map" ".DS_Store"
   ".terraform.lock.hcl" ".terraform.lock.hcl*"
-  # Secrets, Keys, and Environments
   "*.pem" "*.key" "*.crt" "*.cer" "*.p12" "*.pfx" "id_rsa*" ".env*" "secrets.*"
-  # Local Databases & Logs
   "*.sqlite" "*.sqlite3" "*.db" "*.log"
 )
 
@@ -56,16 +54,13 @@ FILES=()
 
 # --- Execute File Discovery ---
 if git rev-parse --is-inside-work-tree &>/dev/null; then
-  echo "🐙 Git repository detected. Using git to resolve files (and enforcing manual exclusions)..."
+  echo "🐙 Git repository detected. Using git to resolve files..."
 
   while IFS= read -r -d '' file_path; do
-    [ -f "$file_path" ] || continue # Ensure it's a file
+    [ -f "$file_path" ] || continue
 
     skip=false
 
-    # 1. Check against excluded directories
-    # By wrapping both sides in slashes, we ensure we match whole directory names
-    # e.g., "src/node_modules/pkg" becomes "/src/node_modules/pkg/" and matches "/node_modules/"
     for ex_dir in "${EXCLUDE_DIRS[@]}"; do
       if [[ "/$file_path/" == *"/$ex_dir/"* ]]; then
         skip=true
@@ -73,7 +68,6 @@ if git rev-parse --is-inside-work-tree &>/dev/null; then
       fi
     done
 
-    # 2. Check against our manual exclusion list for files (Globs supported)
     if ! $skip; then
       basename_file=$(basename "$file_path")
       for ex in "${EXCLUDE_FILES[@]}"; do
@@ -88,21 +82,24 @@ if git rev-parse --is-inside-work-tree &>/dev/null; then
 
     $skip && continue
 
-    # Skip previously generated LLM context files
-    if head -n 1 "$file_path" 2>/dev/null | grep -q "<!-- @GENERATED_LLM_CONTEXT: IGNORE_THIS_FILE -->"; then
+    # Skip files that are unexpectedly massive
+    actual_size=$(wc -c <"$file_path" 2>/dev/null)
+    if [ "$actual_size" -gt "$MAX_SINGLE_FILE_SIZE" ]; then
+      continue
+    fi
+
+    if head -n 1 "$file_path" 2>/dev/null | grep -q "<!-- @GENERATED_CONSOLIDATED_PAYLOAD -->"; then
       continue
     fi
 
     if ! file -b --mime-encoding "$file_path" | grep -q "binary"; then
       FILES+=("$file_path")
     fi
-    # git ls-files: -z (null terminated), --cached (tracked), --others (untracked), --exclude-standard (respect .gitignore)
   done < <(git ls-files -z --cached --others --exclude-standard -- "${SEARCH_BASE[@]}" 2>/dev/null)
 
 else
   echo "📁 No Git repository detected. Falling back to standard find..."
 
-  # Build Prune Logic for find
   PRUNE_LOGIC=()
   for dir in "${EXCLUDE_DIRS[@]}"; do
     PRUNE_LOGIC+=("-type" "d" "-name" "$dir" "-prune" "-o")
@@ -112,9 +109,15 @@ else
   done
 
   while IFS= read -r -d '' file_path; do
-    if head -n 1 "$file_path" 2>/dev/null | grep -q "<!-- @GENERATED_LLM_CONTEXT: IGNORE_THIS_FILE -->"; then
+    actual_size=$(wc -c <"$file_path" 2>/dev/null)
+    if [ "$actual_size" -gt "$MAX_SINGLE_FILE_SIZE" ]; then
       continue
     fi
+
+    if head -n 1 "$file_path" 2>/dev/null | grep -q "<!-- @GENERATED_CONSOLIDATED_PAYLOAD -->"; then
+      continue
+    fi
+
     if ! file -b --mime-encoding "$file_path" | grep -q "binary"; then
       FILES+=("$file_path")
     fi
@@ -134,20 +137,30 @@ echo "📦 Compiling $FILE_COUNT text file(s) into LLM context format..."
 TEMP_FILE=$(mktemp)
 
 cat <<'EOF' >"$TEMP_FILE"
-<!-- @GENERATED_LLM_CONTEXT: IGNORE_THIS_FILE -->
+<!-- @GENERATED_CONSOLIDATED_PAYLOAD -->
 <repository_context>
   <system_instructions>
-    You are an expert software engineer and architect. Review the 'directory_structure' to understand the project architecture, then review the code in the 'files' section. 
+    You are an expert software architect. Review the 'directory_structure' to understand the project architecture, then review the code in the 'files' section.
     
-    CRITICAL RULES:
+    YOUR CORE GOAL: Write code that a human can easily read, troubleshoot, and develop further. Do not write complex "LLM-only" code.
+
+    CRITICAL ARCHITECTURE & STYLE RULES:
+    1. STRICT SECURITY STANDARDS: Assume a highly secure environment. Code must comply with strict Content Security Policies (CSP) and CORS policies. NEVER use inline styles, inline scripts, `eval()`, or unsafe DOM manipulation (e.g., raw innerHTML). Always validate and sanitize inputs to prevent injection attacks.
+    2. FEATURE-DRIVEN ORGANIZATION: Group code by function/feature, not by technical type. Co-locate the components, data logic, and utilities for a specific feature together.
+    3. BALANCED MODULARITY: Keep logic isolated and DRY, but do not fragment the codebase into overly tiny, brittle files. Group highly cohesive logic together.
+    4. HUMAN READABILITY FIRST: Write simple, flat code. Avoid deep nesting (use early returns). Avoid clever, unreadable one-liners. 
+    5. SURFACE CONFIGURATION: Extract tweakable parameters, constants, and magic strings to the top of the file or a clear config block. Do not bury them.
+    6. EXPLICIT ERROR HANDLING: Do not swallow errors silently or return vague null states. Fail fast and provide descriptive, human-readable error messages to make troubleshooting easy.
+    7. ISOLATE SIDE EFFECTS: Keep pure business logic (calculations, transformations) strictly separated from side effects (API calls, DB writes, DOM manipulation). This ensures the code is easily extensible and testable.
+    8. INTENT-REVEALING BUT CONCISE NAMING: Use descriptive names that explain the "what", but avoid excessively long names (e.g., use 'fetchUser' instead of 'fetchUserRecordFromDatabaseForProfile'). Only use comments to explain the "why" behind complex business rules.
+    9. SANE STATE MANAGEMENT: Avoid brittle state passed through deep property drilling. Keep state isolated but easily accessible to the boundaries that need it.
+    10. EXPLICIT DATA CONTRACTS: Define clear shapes for your data using types, interfaces, or detailed docstrings. A human reader should never have to guess what properties exist on an object passed between functions.
+
+    RULES FOR RESPONSE FORMATTING:
     1. NEVER output an entire file unless explicitly asked to do so.
     2. When suggesting changes, ONLY output the specific blocks or lines that need modification.
-    3. Clearly state which file you are modifying and provide surrounding context (a few lines above and below).
-    4. Think step-by-step: Briefly explain your reasoning BEFORE writing code.
-    5. your code must be simple and DRY (do not repeat yourself).
-    6. We do not want large single files/classes/components
-    7. frontends have strict cors policies, no inline styles, for example     
-    8. Be direct, concise, and professional.
+    3. Clearly state which file you are modifying and provide a few lines of surrounding context.
+    4. Think step-by-step: Briefly explain your architectural reasoning BEFORE writing code.
   </system_instructions>
 
   <directory_structure>
@@ -157,7 +170,7 @@ EOF
 printf "%s\n" "${FILES[@]}" | sort | awk -F'/' '{
   path=""
   for(i=1; i<=NF; i++) {
-    path = path ? path"/"$i : $i
+    path = path ? path"/"$i :$i
     if (!seen[path]) {
       seen[path]=1
       indent=""
@@ -171,9 +184,11 @@ printf "%s\n" "${FILES[@]}" | sort | awk -F'/' '{
   }
 }' >>"$TEMP_FILE"
 
-echo "  </directory_structure>" >>"$TEMP_FILE"
-echo "" >>"$TEMP_FILE"
-echo "  <files>" >>"$TEMP_FILE"
+cat <<'EOF' >>"$TEMP_FILE"
+  </directory_structure>
+
+  <files>
+EOF
 
 # 2. Print File Contents inside CDATA blocks
 count=0
@@ -182,7 +197,7 @@ for file_path in "${FILES[@]}"; do
   ((count++))
   display_path=${file_path#./}
 
-  echo -ne "\r⏳ Processing ($count/$FILE_COUNT): $display_path\033[K" >&2
+  echo -ne "\r⏳ Processing ($count/$FILE_COUNT):$display_path\033[K" >&2
 
   echo "    <file path=\"$display_path\">" >>"$TEMP_FILE"
   echo "      <![CDATA[" >>"$TEMP_FILE"
@@ -197,8 +212,10 @@ done
 
 echo -e "\n" >&2
 
-echo "  </files>" >>"$TEMP_FILE"
-echo "</repository_context>" >>"$TEMP_FILE"
+cat <<'EOF' >>"$TEMP_FILE"
+  </files>
+</repository_context>
+EOF
 
 # --- Automated Secret Scanning on Temp File ---
 echo "🔍 Scanning consolidated file for secrets..."
@@ -214,7 +231,6 @@ if command -v trufflehog &>/dev/null; then
   fi
 else
   echo "⚠️  WARNING: TruffleHog binary not found in PATH. Skipping automated secret scan."
-  echo "   Please manually verify the output for API keys and credentials before sharing."
 fi
 
 # --- Finalize and Move File ---

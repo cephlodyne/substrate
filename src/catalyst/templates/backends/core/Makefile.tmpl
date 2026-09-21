@@ -31,7 +31,7 @@ build: audit
 {{- if .Features.HasFrontend }}
 	cd frontend && pnpm build
 {{- end }}
-	go build -mod=vendor -o bin/server ./cmd/server
+	GOWORK=off go build -mod=vendor -o bin/server ./cmd/server
 
 run: build
 	./bin/server
