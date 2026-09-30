@@ -39,13 +39,21 @@ LIMA_FILE="lima-${LIMA_VERSION#v}-Darwin-arm64.tar.gz"
 LIMA_URL="https://github.com/lima-vm/lima/releases/download/${LIMA_VERSION}/${LIMA_FILE}"
 LIMA_SHA="sha256:bbdef91774885a0d05f7b048c4eb89ae2bcf3a0c252ae7ca7934e63df76d93c3"
 
+# Python (Standalone runtime for gcloud & tooling)
+# sha: https://github.com/astral-sh/python-build-standalone/releases
+PYTHON_VERSION="3.10.21"
+PYTHON_BUILD="20260924"
+PYTHON_FILE="cpython-${PYTHON_VERSION}+${PYTHON_BUILD}-aarch64-apple-darwin-install_only.tar.gz"
+PYTHON_URL="https://github.com/astral-sh/python-build-standalone/releases/download/${PYTHON_BUILD}/${PYTHON_FILE}"
+PYTHON_SHA="sha256:640f6eef16f3c85aaf6430e4ab258e6ca75fe7dc0fc29b10d26ed6ca792ebe4e"
+
 # Google Cloud SDK
 # look at the windows releases to see the version number
 # sha: https://cloud.google.com/sdk/docs/downloads-versioned-archives
-GCLOUD_VERSION="584.0.0"
+GCLOUD_VERSION="586.0.0"
 GCLOUD_FILE="google-cloud-cli-darwin-arm.tar.gz"
 GCLOUD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_FILE}"
-GCLOUD_SHA="7719aba6d853621281d7c70c71bf9ed92958da634f51f501d05b07cd48029a0d"
+GCLOUD_SHA="dbe65982ea5958b932da53cb002f39a5f29438963f1013ff90bf5499c937c4a0"
 
 # Alacritty
 # sha: https://github.com/alacritty/alacritty/releases
@@ -256,20 +264,30 @@ if needs_update "Lima" "$LIMA_VERSION"; then
   mark_updated "Lima" "$LIMA_VERSION"
 fi
 
+if needs_update "Python" "$PYTHON_VERSION"; then
+  fetch_and_verify "Python" "$PYTHON_URL" "$PYTHON_FILE" "python.tar.gz" "$PYTHON_SHA"
+  rm -rf "$LOCAL_DIR/python" && mkdir -p "$LOCAL_DIR/python"
+  tar -xzf "$CACHE_DIR/python.tar.gz" -C "$LOCAL_DIR/python" --strip-components=1
+  ln -sf "$LOCAL_DIR/python/bin/python3" "$BIN_DIR/python3"
+  xattr -r -d com.apple.quarantine "$LOCAL_DIR/python" 2>/dev/null || true
+  mark_updated "Python" "$PYTHON_VERSION"
+fi
+
 if needs_update "Gcloud" "$GCLOUD_VERSION"; then
   fetch_and_verify "Google Cloud SDK" "$GCLOUD_URL" "$GCLOUD_FILE" "gcloud.tar.gz" "$GCLOUD_SHA"
   rm -rf "$GCLOUD_DIR" && tar -xzf "$CACHE_DIR/gcloud.tar.gz" -C "$LOCAL_DIR"
 
-  echo "📦 Bootstrapping gcloud (Fetching isolated Python 3.10+)..."
-  # Run installer headlessly to fetch Google's bundled Python without modifying user dotfiles
-  env CLOUDSDK_CORE_DISABLE_PROMPTS=1 "$GCLOUD_DIR/install.sh" --quiet --path-update=false --command-completion=false
+  echo "📦 Bootstrapping gcloud (Using isolated Python 3.12)..."
+  # Force gcloud to use our strictly controlled Python binary
+  env CLOUDSDK_PYTHON="$BIN_DIR/python3" CLOUDSDK_CORE_DISABLE_PROMPTS=1 \
+    "$GCLOUD_DIR/install.sh" --quiet --path-update=false --command-completion=false
 
   ln -sf "$GCLOUD_DIR/bin/gcloud" "$BIN_DIR/gcloud"
   xattr -r -d com.apple.quarantine "$GCLOUD_DIR" 2>/dev/null || true
 
   echo "🔒 Disabling gcloud internal updaters to prevent version drift..."
-  "$BIN_DIR/gcloud" config set component_manager/disable_update_check true --quiet || true
-  "$BIN_DIR/gcloud" config set core/disable_usage_reporting true --quiet || true
+  env CLOUDSDK_PYTHON="$BIN_DIR/python3" "$BIN_DIR/gcloud" config set component_manager/disable_update_check true --quiet || true
+  env CLOUDSDK_PYTHON="$BIN_DIR/python3" "$BIN_DIR/gcloud" config set core/disable_usage_reporting true --quiet || true
 
   mark_updated "Gcloud" "$GCLOUD_VERSION"
 fi
