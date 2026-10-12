@@ -50,10 +50,10 @@ PYTHON_SHA="sha256:640f6eef16f3c85aaf6430e4ab258e6ca75fe7dc0fc29b10d26ed6ca792eb
 # Google Cloud SDK
 # look at the windows releases to see the version number
 # sha: https://cloud.google.com/sdk/docs/downloads-versioned-archives
-GCLOUD_VERSION="586.0.0"
-GCLOUD_FILE="google-cloud-cli-darwin-arm.tar.gz"
+GCLOUD_VERSION="588.0.0"
+GCLOUD_FILE="google-cloud-cli-${GCLOUD_VERSION}-darwin-arm.tar.gz"
 GCLOUD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_FILE}"
-GCLOUD_SHA="dbe65982ea5958b932da53cb002f39a5f29438963f1013ff90bf5499c937c4a0"
+GCLOUD_SHA="0f580f1323d0465b11d1d7c506e701c27729e9c5ea0e1d0f855a4dc3e665db89"
 
 # Alacritty
 # sha: https://github.com/alacritty/alacritty/releases
@@ -73,10 +73,10 @@ JB_MONO_SHA="sha256:fab782a66f7d3019da64f6572db9fc5d3a4bcb19f9fa13e2d8a62e3693d6
 
 # Go
 # sha: https://go.dev/dl/
-GO_VERSION="1.27.1"
+GO_VERSION="1.27.2"
 GO_FILE="go${GO_VERSION}.darwin-arm64.tar.gz"
 GO_URL="https://go.dev/dl/${GO_FILE}"
-GO_SHA="ee215d57e0ec269c60cc9ceca68e6bda321ba9ee5afe24f4b0988703c2d87d12"
+GO_SHA="76812b213b1b2302c978d28fa52fa92d541704b9e7d9d5db8002c50e4018c4c5"
 
 # Node.js
 NODE_VERSION="v24.21.0"
@@ -611,8 +611,8 @@ size = 18.0
 [keyboard]
 bindings = [{ key = "N", mods = "Command", action = "CreateNewWindow" }]
 [colors.primary]
-background = "#1a1b26"
-foreground = "#c0caf5"
+background = "#e1e2e7"
+foreground = "#3760bf"
 EOF
 
 mkdir -p ~/.config/nvim/lua/plugins ~/.config/nvim/lua/config
@@ -726,8 +726,26 @@ EOF
 
 cat <<'EOF' >~/.config/nvim/lua/plugins/theme.lua
 return {
-  { "folke/tokyonight.nvim", lazy = false, priority = 1000, opts = { style = "night" } },
-  { "LazyVim/LazyVim", opts = { colorscheme = "tokyonight" } },
+  { "folke/tokyonight.nvim", lazy = false, priority = 1000 },
+  { "LazyVim/LazyVim", opts = { colorscheme = "tokyonight-night" } },
+  {
+    "f-person/auto-dark-mode.nvim",
+    lazy = false,
+    priority = 1000,
+    config = function()
+      require("auto-dark-mode").setup({
+        update_interval = 1000,
+        set_dark_mode = function()
+          vim.api.nvim_set_option_value("background", "dark", {})
+          vim.cmd("colorscheme tokyonight-night")
+        end,
+        set_light_mode = function()
+          vim.api.nvim_set_option_value("background", "light", {})
+          vim.cmd("colorscheme tokyonight-day")
+        end,
+      })
+    end,
+  },
 }
 EOF
 
