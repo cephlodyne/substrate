@@ -1,12 +1,9 @@
 .git
 .env
-vendor/
+bin/
 
 {{ if .Features.HasFrontend }}
 # UI ignores
-package.json
-pnpm-lock.yaml
-node_modules/
-dist/
-.svelte-kit/
+frontend/node_modules/
+frontend/dist/
 {{ end }}

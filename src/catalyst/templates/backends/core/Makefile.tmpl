@@ -1,31 +1,51 @@
-.PHONY: setup build run dev audit
+.PHONY: setup build run dev prod audit
+
+OFFLINE ?= false
 
 setup:
 {{- if .Features.HasConnectRPC }}
 	@echo "Generating RPC Contracts..."
 	buf generate {{ .ContractsDir }} --template buf.gen.yaml
 {{- end }}
-	@echo "Syncing Go dependencies..."
-{{- if .Features.HasConnectRPC }}
-	@go get connectrpc.com/connect@v1.20.0 >/dev/null 2>&1 || true
-{{- end }}
-	go mod tidy
-	@echo "Vendoring dependencies for zero-trust builds..."
-	GOWORK=off go mod vendor
+	@set -a && [ -f ../.env ] && . ../.env && [ -f .env ] && . ./.env && set +a; \
+	if [ "$(OFFLINE)" = "true" ]; then \
+		echo "📴 [Offline] Using vendored Go & cached Node dependencies..."; \
 {{- if .Features.HasFrontend }}
-	@echo "Syncing Node dependencies..."
-	cd frontend && npm_config_offline=false pnpm install
+		cd frontend && pnpm install --offline --frozen-lockfile; \
+{{- end }}
+	else \
+		echo "Syncing Go dependencies..."; \
+{{- if .Features.HasConnectRPC }}
+		go get connectrpc.com/connect@v1.20.0 >/dev/null 2>&1 || true; \
+{{- end }}
+		go mod tidy; \
+		echo "Vendoring dependencies for zero-trust builds..."; \
+		GOWORK=off go mod vendor; \
+{{- if .Features.HasFrontend }}
+		echo "Syncing Node dependencies from Golden Store & caching for offline use..."; \
+		cd frontend && if [ -f pnpm-lock.yaml ]; then \
+			npm_config_offline=false pnpm fetch && npm_config_offline=false pnpm install; \
+		else \
+			npm_config_offline=false pnpm install --no-frozen-lockfile && npm_config_offline=false pnpm fetch; \
+		fi; \
+{{- end }}
+	fi
+{{- if .Features.HasFrontend }}
 	@echo "Ensuring frontend dist directory exists for go:embed..."
 	mkdir -p frontend/dist && touch frontend/dist/.keep
 {{- end }}
 
 audit:
-	@echo "🔍 Running Go Vulnerability Check..."
-	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	@if [ "$(OFFLINE)" = "true" ]; then \
+		echo "📴 [Offline] Skipping remote vulnerability checks."; \
+	else \
+		echo "🔍 Running Go Vulnerability Check..."; \
+		go run golang.org/x/vuln/cmd/govulncheck@latest ./...; \
 {{- if .Features.HasFrontend }}
-	@echo "🔍 Running Frontend Dependency Audit..."
-	cd frontend && pnpm audit
+		echo "🔍 Running Frontend Dependency Audit..."; \
+		cd frontend && pnpm audit --registry=https://registry.npmjs.org/; \
 {{- end }}
+	fi
 
 build: audit
 {{- if .Features.HasFrontend }}
@@ -42,7 +62,7 @@ prod: build
 
 dev: setup
 {{- if .Features.HasFrontend }}
-	@echo "Starting rapid local development environment..."
+	@echo "Starting rapid local development environment (OFFLINE=$(OFFLINE))..."
 	@bash -c "trap 'kill 0' EXIT; IS_CLOUD=false IS_PROD=false GOWORK=off go run -mod=vendor ./cmd/server/main.go & cd frontend && pnpm dev"
 {{- else }}
 	IS_CLOUD=false IS_PROD=false GOWORK=off go run -mod=vendor ./cmd/server/main.go
