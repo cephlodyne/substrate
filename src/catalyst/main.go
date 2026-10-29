@@ -18,20 +18,7 @@ var templatesFS embed.FS
 
 // Master versions matching the zero-trust base-images strictly
 const (
-	ProtobufGenEsVersion    = "2.13.0"
-	VitePluginSvelteVersion = "7.2.0"
-	TSConfigSvelteVersion   = "5.0.8"
-	SvelteVersion           = "5.56.5"
-	SvelteCheckVersion      = "4.7.3"
-	SveltePreprocessVersion = "6.0.5"
-	SolidVersion            = "1.9.15"
-	VitePluginSolidVersion  = "2.11.14"
-	TypeScriptVersion       = "7.0.2"
-	TSLibVersion            = "2.8.1"
-	ViteVersion             = "8.1.4"
-	ProtobufVersion         = "2.12.1"
-	ConnectWebVersion       = "2.1.2"
-	KitVersion              = "v0.5.4"
+	KitVersion = "v0.5.4"
 )
 
 // getSystemVersion runs a command and returns the trimmed output
@@ -45,7 +32,26 @@ func getSystemVersion(name string, args ...string) string {
 	return strings.TrimSpace(out.String())
 }
 
-func getDynamicVersions() patterns.Versions {
+// getNpmVersion dynamically queries the Golden NPM Store (or active npm config) for the latest vetted version
+func getNpmVersion(pkg, registry string) string {
+	args := []string{"view", pkg, "version"}
+	if registry != "" && !strings.Contains(registry, "YOUR_PROJECT_ID") {
+		args = append(args, "--registry="+registry)
+	}
+	cmd := exec.Command("npm", args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return "latest"
+	}
+	ver := strings.TrimSpace(out.String())
+	if ver == "" {
+		return "latest"
+	}
+	return ver
+}
+
+func getDynamicVersions(npmRegistry string) patterns.Versions {
 	goVer := strings.TrimPrefix(getSystemVersion("go", "env", "GOVERSION"), "go")
 	nodeVer := strings.TrimPrefix(getSystemVersion("node", "--version"), "v")
 	pnpmVer := getSystemVersion("pnpm", "--version")
@@ -54,19 +60,19 @@ func getDynamicVersions() patterns.Versions {
 		GoVersion:               goVer,
 		NodeVersion:             nodeVer,
 		PnpmVersion:             pnpmVer,
-		ProtobufGenEsVersion:    ProtobufGenEsVersion,
-		VitePluginSvelteVersion: VitePluginSvelteVersion,
-		TSConfigSvelteVersion:   TSConfigSvelteVersion,
-		SvelteVersion:           SvelteVersion,
-		SvelteCheckVersion:      SvelteCheckVersion,
-		SveltePreprocessVersion: SveltePreprocessVersion,
-		SolidVersion:            SolidVersion,
-		VitePluginSolidVersion:  VitePluginSolidVersion,
-		TypeScriptVersion:       TypeScriptVersion,
-		TSLibVersion:            TSLibVersion,
-		ViteVersion:             ViteVersion,
-		ProtobufVersion:         ProtobufVersion,
-		ConnectWebVersion:       ConnectWebVersion,
+		ProtobufGenEsVersion:    getNpmVersion("@bufbuild/protoc-gen-es", npmRegistry),
+		VitePluginSvelteVersion: getNpmVersion("@sveltejs/vite-plugin-svelte", npmRegistry),
+		TSConfigSvelteVersion:   getNpmVersion("@tsconfig/svelte", npmRegistry),
+		SvelteVersion:           getNpmVersion("svelte", npmRegistry),
+		SvelteCheckVersion:      getNpmVersion("svelte-check", npmRegistry),
+		SveltePreprocessVersion: getNpmVersion("svelte-preprocess", npmRegistry),
+		SolidVersion:            getNpmVersion("solid-js", npmRegistry),
+		VitePluginSolidVersion:  getNpmVersion("vite-plugin-solid", npmRegistry),
+		TypeScriptVersion:       getNpmVersion("typescript", npmRegistry),
+		TSLibVersion:            getNpmVersion("tslib", npmRegistry),
+		ViteVersion:             getNpmVersion("vite", npmRegistry),
+		ProtobufVersion:         getNpmVersion("@bufbuild/protobuf", npmRegistry),
+		ConnectWebVersion:       getNpmVersion("@connectrpc/connect", npmRegistry),
 		KitVersion:              KitVersion,
 	}
 }
@@ -102,7 +108,7 @@ func main() {
 
 	data := patterns.TemplateData{ProjectName: *nameFlag,
 		Features:     pattern.Features,
-		Versions:     getDynamicVersions(),
+		Versions:     getDynamicVersions(npmRegistry),
 		ContractsDir: *contractsFlag,
 		NPMRegistry:  npmRegistry,
 		NPMAuthPath:  npmAuthPath,

@@ -34,10 +34,10 @@ COLIMA_SHA="sha256:980ad8bf61a4ca370243f4cb41401a61276dcd2c2502bee7b9b86f9250169
 
 # Lima
 # sha: https://github.com/lima-vm/lima/releases
-LIMA_VERSION="v2.2.0"
+LIMA_VERSION="v2.2.1"
 LIMA_FILE="lima-${LIMA_VERSION#v}-Darwin-arm64.tar.gz"
 LIMA_URL="https://github.com/lima-vm/lima/releases/download/${LIMA_VERSION}/${LIMA_FILE}"
-LIMA_SHA="sha256:bbdef91774885a0d05f7b048c4eb89ae2bcf3a0c252ae7ca7934e63df76d93c3"
+LIMA_SHA="sha256:9e9eacce88f37e185c346bad73aa6136f738d8cdf8c3bb23cd42b071824bc66e"
 
 # Python (Standalone runtime for gcloud & tooling)
 # sha: https://github.com/astral-sh/python-build-standalone/releases
@@ -50,10 +50,10 @@ PYTHON_SHA="sha256:640f6eef16f3c85aaf6430e4ab258e6ca75fe7dc0fc29b10d26ed6ca792eb
 # Google Cloud SDK
 # look at the windows releases to see the version number
 # sha: https://cloud.google.com/sdk/docs/downloads-versioned-archives
-GCLOUD_VERSION="588.0.0"
-GCLOUD_FILE="google-cloud-cli-${GCLOUD_VERSION}-darwin-arm.tar.gz"
+GCLOUD_VERSION="590.0.1"
+GCLOUD_FILE="google-cloud-cli-darwin-arm.tar.gz"
 GCLOUD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_FILE}"
-GCLOUD_SHA="0f580f1323d0465b11d1d7c506e701c27729e9c5ea0e1d0f855a4dc3e665db89"
+GCLOUD_SHA="71a0aab59d239e08f3a4ea69ef33b4eecbd21f79ed5567e3fd4745f81ec8e003"
 
 # Alacritty
 # sha: https://github.com/alacritty/alacritty/releases
@@ -73,23 +73,23 @@ JB_MONO_SHA="sha256:fab782a66f7d3019da64f6572db9fc5d3a4bcb19f9fa13e2d8a62e3693d6
 
 # Go
 # sha: https://go.dev/dl/
-GO_VERSION="1.27.2"
+GO_VERSION="1.27.3"
 GO_FILE="go${GO_VERSION}.darwin-arm64.tar.gz"
 GO_URL="https://go.dev/dl/${GO_FILE}"
-GO_SHA="76812b213b1b2302c978d28fa52fa92d541704b9e7d9d5db8002c50e4018c4c5"
+GO_SHA="dd3908cf20959d798c1e06ebe5b72213f0505ce01373b40ce3110975a6cd99c2"
 
 # Node.js
-NODE_VERSION="v24.21.0"
+NODE_VERSION="v24.22.1"
 NODE_FILE="node-${NODE_VERSION}-darwin-arm64.tar.xz"
 NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_FILE}"
 NODE_SHA_SOURCE="https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt"
 
 # Neovim
 # sha: https://github.com/neovim/neovim/releases
-NVIM_VERSION="v0.12.5"
+NVIM_VERSION="v0.12.6"
 NVIM_FILE="nvim-macos-arm64.tar.gz"
 NVIM_URL="https://github.com/neovim/neovim/releases/download/$NVIM_VERSION/${NVIM_FILE}"
-NVIM_SHA="sha256:65fb000099e47ca1b762584c484cc833f40e30851a0ec450d4174e16317c1f9b"
+NVIM_SHA="sha256:1dbd148222b051ba6c307c4d17a318ed083df018a4f6a5a0ce46955ffc9ab87b"
 
 # --- CLI Utilities ---
 
@@ -109,38 +109,38 @@ FD_SHA="sha256:b67e1836c468e42e411984b56e52fa7abec08c2bd22c867398e7cc134aac5e12"
 
 # Protoc (Protocol Buffers Compiler)
 # sha: https://github.com/protocolbuffers/protobuf/releases
-PROTOC_VERSION="36.1"
+PROTOC_VERSION="36.2"
 PROTOC_FILE="protoc-${PROTOC_VERSION}-osx-aarch_64.zip"
 PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_FILE}"
-PROTOC_SHA="sha256:de56d57afe30c5d191b11d24ff93dd4025728d7fb43b773886b2d3613e0bdbb2"
+PROTOC_SHA="sha256:9cd98a532c5c5e0c4161314de0225de27e4c8a323917b6ea7b1b714d3ae23466"
 
 # Tree-sitter
 # sha: https://github.com/tree-sitter/tree-sitter/releases
-TS_VERSION="v0.27.0"
+TS_VERSION="v0.27.1"
 TS_FILE="tree-sitter-macos-arm64.gz"
 TS_URL="https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/${TS_FILE}"
-TS_SHA="sha256:70f7573b2b2e5371a5b58cc5227d2ad981fd5374596b9874e770af486060774e"
+TS_SHA="sha256:46cb97d9a2c52c94e22d9a76c2f1116156b8b61f98360e2a9cce05fcb197cd4d"
 
 # TruffleHog
 # sha: https://github.com/trufflesecurity/trufflehog/releases
-TRUFFLEHOG_VERSION="3.96.0"
+TRUFFLEHOG_VERSION="3.99.3"
 TRUFFLEHOG_FILE="trufflehog_${TRUFFLEHOG_VERSION}_darwin_arm64.tar.gz"
 TRUFFLEHOG_URL="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/${TRUFFLEHOG_FILE}"
-TRUFFLEHOG_SHA="sha256:87478306b95ca2420cfb844b7582383ac60b922e262350a0088e797f328d2e62"
+TRUFFLEHOG_SHA="sha256:07d8744261d4460c2e8ee8d908d71e4aee70e049496100290b50aac7757ad078"
 
 # Lazygit
 # sha: https://github.com/jesseduffield/lazygit/releases
-LAZYGIT_VERSION="v0.65.0"
+LAZYGIT_VERSION="v0.66.2"
 LAZYGIT_FILE="lazygit_${LAZYGIT_VERSION#v}_darwin_arm64.tar.gz"
 LAZYGIT_URL="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/${LAZYGIT_FILE}"
-LAZYGIT_SHA="sha256:d8ea1cade9e4279e45cbb58652e84edb07e98a9f8ec0604099c8b0a8f709e63a"
+LAZYGIT_SHA="sha256:fadda59ae7665ba556fcbaa704c7eade6e40d016d3f3b25d6327dd1f3f906a0c"
 
 # Tofu
 # sha: https://github.com/opentofu/opentofu/releases
-TOFU_VERSION="1.12.6"
+TOFU_VERSION="1.13.1"
 TOFU_FILE="tofu_${TOFU_VERSION}_darwin_arm64.zip"
 TOFU_URL="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/${TOFU_FILE}"
-TOFU_SHA="sha256:e083ee43790ab9e19ad66d9933e24a7244a1412e1d5728f37999ae2163fdac95"
+TOFU_SHA="sha256:81aebe6453223bcb3ce3c28424b36d009ebfddd3ad65ad1ec3eed0d0d574a77b"
 
 # Open Tofu LS
 # sha: https://github.com/opentofu/tofu-ls/releases
@@ -151,16 +151,16 @@ TOFULS_SHA="sha256:391d2771a501ddc9a1f6575f57346f2653ff7df82d322a13c87147f38b8e0
 
 # Global Packages (Pinned for Zero-Trust Updates) ---
 
-GOPLS_VERSION="v0.23.0"
-GOIMPORTS_VERSION="v0.50.0"
-PNPM_VERSION="12.3.4"
+GOPLS_VERSION="v0.24.0"
+GOIMPORTS_VERSION="v0.52.0"
+PNPM_VERSION="12.14.0"
 BIOME_VERSION="2.5.12"
 
 # Code Generation Plugins
-BUF_VERSION="v1.73.0"
+BUF_VERSION="v1.74.0"
 PROTOC_GEN_GO_VERSION="v1.36.11"
 PROTOC_GEN_CONNECT_GO_VERSION="v1.18.1"
-PROTOC_GEN_ES_VERSION="2.14.1"
+PROTOC_GEN_ES_VERSION="2.16.0"
 
 # ==============================================================================
 # Paths & Ledger Setup
