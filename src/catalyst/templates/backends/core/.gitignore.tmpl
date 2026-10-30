@@ -4,15 +4,13 @@
 
 # Environment
 .env
+.env.*
 
-# Go workspace/vendor
+# Go workspace
 go.work
 go.work.sum
-vendor/
-
 {{ if .Features.HasFrontend }}
 # UI ignores
-node_modules/
-dist/
-.svelte-kit/
+frontend/node_modules/
+frontend/dist/
 {{ end }}
