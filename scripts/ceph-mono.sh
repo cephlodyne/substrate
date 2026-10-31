@@ -32,6 +32,24 @@ fi
 if [ -z "${NPM_REGISTRY:-}" ]; then
   read -p "❓ Enter your NPM Registry URL [https://us-central1-npm.pkg.dev/YOUR_PROJECT/golden-npm-store/]: " input_npm
   NPM_REGISTRY=${input_npm:-"https://us-central1-npm.pkg.dev/YOUR_PROJECT/golden-npm-store/"}
+
+  echo ""
+  echo "💡 Tip: To skip this prompt on future projects, add this to your ~/.zshrc or ~/.bash_profile:"
+  echo "   export NPM_REGISTRY=\"$NPM_REGISTRY\""
+  echo "---------------------------------------------------------"
+  echo ""
+fi
+
+# Ensure trailing slash and extract auth host path
+[[ "$NPM_REGISTRY" != */ ]] && NPM_REGISTRY="${NPM_REGISTRY}/"
+NPM_AUTH_HOST="${NPM_REGISTRY#https:}"
+
+# Pre-authenticate npm and pnpm before invoking ceph so dynamic version lookups against GAR succeed
+if [[ "$NPM_REGISTRY" != *"YOUR_PROJECT"* ]]; then
+  if TOKEN=$(gcloud auth print-access-token 2>/dev/null); then
+    npm config set "${NPM_AUTH_HOST}:_authToken" "$TOKEN" --location=user
+    pnpm config set "${NPM_AUTH_HOST}:_authToken" "$TOKEN" --location=global
+  fi
 fi
 
 echo "🚀 Bootstrapping Zero-Trust Monorepo: $PROJECT_NAME in ./$TARGET_DIR..."
@@ -108,8 +126,8 @@ echo "   2) External Web (Svelte, Public)"
 echo "   3) Internal Admin (SolidJS, IAP Protected)"
 echo "   4) External Web (SolidJS, Public)"
 echo "   5) None"
-read -p "Select (1-5) [1]: " ui_type
-ui_type=${ui_type:-1}
+read -p "Select (1-5) [3]: " ui_type
+ui_type=${ui_type:-3}
 
 if [[ "$ui_type" =~ ^[1-4]$ ]]; then
   read -p "   ↳ Directory name for Web App [web]: " DIR_FRONTEND
@@ -153,7 +171,7 @@ if [[ "$ui_type" =~ ^[1-4]$ ]]; then
       - "8081:8081"
 EOF
 
-    # CRITICAL FIX: Only depend on API if it actually exists
+    # Only depend on API if it actually exists
     if [[ "$add_backend" =~ ^[Yy]?$ ]]; then
       cat <<EOF >>docker-compose.yml
     depends_on:
@@ -176,15 +194,30 @@ echo ""
 echo "📝 Generating master workspace Makefile..."
 
 cat <<EOF >Makefile
-.PHONY: setup dev
+.PHONY: setup dev dev-offline prod
+
+OFFLINE ?= false
+GOLDEN_NPM_HOST ?= ${NPM_AUTH_HOST}
 
 setup:
 EOF
 
 if [[ "$ui_type" =~ ^[1-4]$ ]]; then
   cat <<EOF >>Makefile
-	@echo "🔑 Fetching GAR token for local development..."
-	@echo "NPM_TOKEN=\$\$(gcloud auth print-access-token)" > .env
+	@if [ "\$(OFFLINE)" != "true" ]; then \\
+		echo "🔑 Fetching GAR token for local development..."; \\
+		if TOKEN=\$\$(gcloud auth print-access-token 2>/dev/null); then \\
+			echo "NPM_TOKEN=\$\$TOKEN" > .env; \\
+			npm config set "\$(GOLDEN_NPM_HOST):_authToken" "\$\$TOKEN" --location=user; \\
+			pnpm config set "\$(GOLDEN_NPM_HOST):_authToken" "\$\$TOKEN" --location=global; \\
+		else \\
+			echo "⚠️  Could not reach GCP. Running setup in OFFLINE=true mode..."; \\
+			\$(MAKE) setup OFFLINE=true || exit 1; \\
+			exit 0; \\
+		fi; \\
+	else \\
+		echo "📴 Offline mode enabled: Skipping GAR token fetch."; \\
+	fi
 EOF
 fi
 
@@ -193,7 +226,7 @@ cat <<EOF >>Makefile
 		if [ -f "\$\$dir/Makefile" ]; then \\
 			echo ""; \\
 			echo "↳ Bootstrapping \$\$dir..."; \\
-			\$(MAKE) -C \$\$dir setup || exit 1; \\
+			\$(MAKE) -C \$\$dir setup OFFLINE=\$(OFFLINE) || exit 1; \\
 		fi; \\
 	done
 
@@ -202,8 +235,18 @@ EOF
 
 if [[ "$ui_type" =~ ^[1-4]$ ]]; then
   cat <<EOF >>Makefile
-	@echo "🔑 Refreshing GAR token..."
-	@echo "NPM_TOKEN=\$\$(gcloud auth print-access-token)" > .env
+	@if [ "\$(OFFLINE)" != "true" ]; then \\
+		echo "🔑 Refreshing GAR token..."; \\
+		if TOKEN=\$\$(gcloud auth print-access-token 2>/dev/null); then \\
+			echo "NPM_TOKEN=\$\$TOKEN" > .env; \\
+			npm config set "\$(GOLDEN_NPM_HOST):_authToken" "\$\$TOKEN" --location=user; \\
+			pnpm config set "\$(GOLDEN_NPM_HOST):_authToken" "\$\$TOKEN" --location=global; \\
+		else \\
+			echo "⚠️  No internet / GCP connection detected. Switching to OFFLINE=true..."; \\
+			\$(MAKE) dev OFFLINE=true; \\
+			exit 0; \\
+		fi; \\
+	fi
 EOF
 fi
 
@@ -220,15 +263,24 @@ else
 EOF
   if [[ "$add_backend" =~ ^[Yy]?$ ]]; then
     cat <<EOF >>Makefile
-		if [ -d '$DIR_BACKEND' ]; then \$(MAKE) -C $DIR_BACKEND dev & fi; \\
+		if [ -d '$DIR_BACKEND' ]; then \$(MAKE) -C $DIR_BACKEND dev OFFLINE=\$(OFFLINE) & fi; \\
 EOF
   fi
   if [[ "$ui_type" =~ ^[1-4]$ ]]; then
     cat <<EOF >>Makefile
-		if [ -d '$DIR_FRONTEND' ]; then \$(MAKE) -C $DIR_FRONTEND dev & fi; \\
+		if [ -d '$DIR_FRONTEND' ]; then \$(MAKE) -C $DIR_FRONTEND dev OFFLINE=\$(OFFLINE) & fi; \\
 EOF
   fi
   cat <<EOF >>Makefile
+		wait"
+EOF
+fi
+
+cat <<EOF >>Makefile
+
+dev-offline:
+	@\$(MAKE) dev OFFLINE=true
+
 prod:
 EOF
 
@@ -244,12 +296,12 @@ else
 EOF
   if [[ "$add_backend" =~ ^[Yy]?$ ]]; then
     cat <<EOF >>Makefile
-		if [ -d '$DIR_BACKEND' ]; then \$(MAKE) -C $DIR_BACKEND prod & fi; \\
+		if [ -d '$DIR_BACKEND' ]; then \$(MAKE) -C $DIR_BACKEND prod OFFLINE=\$(OFFLINE) & fi; \\
 EOF
   fi
   if [[ "$ui_type" =~ ^[1-4]$ ]]; then
     cat <<EOF >>Makefile
-		if [ -d '$DIR_FRONTEND' ]; then \$(MAKE) -C $DIR_FRONTEND prod & fi; \\
+		if [ -d '$DIR_FRONTEND' ]; then \$(MAKE) -C $DIR_FRONTEND prod OFFLINE=\$(OFFLINE) & fi; \\
 EOF
   fi
   cat <<EOF >>Makefile
@@ -262,5 +314,5 @@ make setup
 
 echo "========================================================"
 echo "✅ Monorepo '$PROJECT_NAME' generated successfully!"
-echo "👉 Run 'make dev' to boot the environment."
+echo "👉 Run 'make dev' to boot the environment (or 'make dev-offline' when offline)."
 echo "========================================================"
