@@ -20,147 +20,17 @@ if ! xcode-select -p &>/dev/null; then
 fi
 
 # ==============================================================================
-# 1. TOOL VERSIONS, URLS & SHAS (macOS ARM64)
+# 1. LOAD TOOL VERSIONS, URLS & SHAS (from versions.env)
 # ==============================================================================
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# --- Infrastructure & Virtualization ---
+if [ ! -f "$SCRIPT_DIR/versions.env" ]; then
+  echo "❌ FATAL: Missing $SCRIPT_DIR/versions.env"
+  exit 1
+fi
 
-# Colima
-# sha: https://github.com/abiosoft/colima/releases
-COLIMA_VERSION="v0.10.3"
-COLIMA_FILE="colima-Darwin-arm64"
-COLIMA_URL="https://github.com/abiosoft/colima/releases/download/${COLIMA_VERSION}/${COLIMA_FILE}"
-COLIMA_SHA="sha256:980ad8bf61a4ca370243f4cb41401a61276dcd2c2502bee7b9b86f9250169f34"
-
-# Lima
-# sha: https://github.com/lima-vm/lima/releases
-LIMA_VERSION="v2.2.1"
-LIMA_FILE="lima-${LIMA_VERSION#v}-Darwin-arm64.tar.gz"
-LIMA_URL="https://github.com/lima-vm/lima/releases/download/${LIMA_VERSION}/${LIMA_FILE}"
-LIMA_SHA="sha256:9e9eacce88f37e185c346bad73aa6136f738d8cdf8c3bb23cd42b071824bc66e"
-
-# Python (Standalone runtime for gcloud & tooling)
-# sha: https://github.com/astral-sh/python-build-standalone/releases
-PYTHON_VERSION="3.10.21"
-PYTHON_BUILD="20260924"
-PYTHON_FILE="cpython-${PYTHON_VERSION}+${PYTHON_BUILD}-aarch64-apple-darwin-install_only.tar.gz"
-PYTHON_URL="https://github.com/astral-sh/python-build-standalone/releases/download/${PYTHON_BUILD}/${PYTHON_FILE}"
-PYTHON_SHA="sha256:640f6eef16f3c85aaf6430e4ab258e6ca75fe7dc0fc29b10d26ed6ca792ebe4e"
-
-# Google Cloud SDK
-# look at the windows releases to see the version number
-# sha: https://cloud.google.com/sdk/docs/downloads-versioned-archives
-GCLOUD_VERSION="590.0.1"
-GCLOUD_FILE="google-cloud-cli-darwin-arm.tar.gz"
-GCLOUD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_FILE}"
-GCLOUD_SHA="71a0aab59d239e08f3a4ea69ef33b4eecbd21f79ed5567e3fd4745f81ec8e003"
-
-# Alacritty
-# sha: https://github.com/alacritty/alacritty/releases
-ALACRITTY_VERSION="v0.17.0"
-ALACRITTY_FILE="Alacritty-${ALACRITTY_VERSION}.dmg"
-ALACRITTY_URL="https://github.com/alacritty/alacritty/releases/download/${ALACRITTY_VERSION}/${ALACRITTY_FILE}"
-ALACRITTY_SHA="sha256:ad8d7de35fb38e43184776cac6dfee05ca325caa0b6639a06a55e54e4b026620"
-
-# JetBrains Mono Nerd Font
-# sha: https://github.com/ryanoasis/nerd-fonts/releases
-JB_MONO_VERSION="v3.5.1"
-JB_MONO_FILE="JetBrainsMono.zip"
-JB_MONO_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${JB_MONO_VERSION}/${JB_MONO_FILE}"
-JB_MONO_SHA="sha256:fab782a66f7d3019da64f6572db9fc5d3a4bcb19f9fa13e2d8a62e3693d6396e"
-
-# --- Languages & Base Tools ---
-
-# Go
-# sha: https://go.dev/dl/
-GO_VERSION="1.27.3"
-GO_FILE="go${GO_VERSION}.darwin-arm64.tar.gz"
-GO_URL="https://go.dev/dl/${GO_FILE}"
-GO_SHA="dd3908cf20959d798c1e06ebe5b72213f0505ce01373b40ce3110975a6cd99c2"
-
-# Node.js
-NODE_VERSION="v24.22.1"
-NODE_FILE="node-${NODE_VERSION}-darwin-arm64.tar.xz"
-NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_FILE}"
-NODE_SHA_SOURCE="https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt"
-
-# Neovim
-# sha: https://github.com/neovim/neovim/releases
-NVIM_VERSION="v0.12.6"
-NVIM_FILE="nvim-macos-arm64.tar.gz"
-NVIM_URL="https://github.com/neovim/neovim/releases/download/$NVIM_VERSION/${NVIM_FILE}"
-NVIM_SHA="sha256:1dbd148222b051ba6c307c4d17a318ed083df018a4f6a5a0ce46955ffc9ab87b"
-
-# --- CLI Utilities ---
-
-# Ripgrep
-# sha: https://github.com/BurntSushi/ripgrep/releases
-RG_VERSION="15.2.0"
-RG_FILE="ripgrep-$RG_VERSION-aarch64-apple-darwin.tar.gz"
-RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/$RG_VERSION/${RG_FILE}"
-RG_SHA="sha256:3750b2e93f37e0c692657da574d7019a101c0084da05a790c83fd335bad973e4"
-
-# fd
-# sha: https://github.com/sharkdp/fd/releases
-FD_VERSION="v10.5.0"
-FD_FILE="fd-$FD_VERSION-aarch64-apple-darwin.tar.gz"
-FD_URL="https://github.com/sharkdp/fd/releases/download/$FD_VERSION/${FD_FILE}"
-FD_SHA="sha256:b67e1836c468e42e411984b56e52fa7abec08c2bd22c867398e7cc134aac5e12"
-
-# Protoc (Protocol Buffers Compiler)
-# sha: https://github.com/protocolbuffers/protobuf/releases
-PROTOC_VERSION="36.2"
-PROTOC_FILE="protoc-${PROTOC_VERSION}-osx-aarch_64.zip"
-PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_FILE}"
-PROTOC_SHA="sha256:9cd98a532c5c5e0c4161314de0225de27e4c8a323917b6ea7b1b714d3ae23466"
-
-# Tree-sitter
-# sha: https://github.com/tree-sitter/tree-sitter/releases
-TS_VERSION="v0.27.1"
-TS_FILE="tree-sitter-macos-arm64.gz"
-TS_URL="https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/${TS_FILE}"
-TS_SHA="sha256:46cb97d9a2c52c94e22d9a76c2f1116156b8b61f98360e2a9cce05fcb197cd4d"
-
-# TruffleHog
-# sha: https://github.com/trufflesecurity/trufflehog/releases
-TRUFFLEHOG_VERSION="3.99.3"
-TRUFFLEHOG_FILE="trufflehog_${TRUFFLEHOG_VERSION}_darwin_arm64.tar.gz"
-TRUFFLEHOG_URL="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/${TRUFFLEHOG_FILE}"
-TRUFFLEHOG_SHA="sha256:07d8744261d4460c2e8ee8d908d71e4aee70e049496100290b50aac7757ad078"
-
-# Lazygit
-# sha: https://github.com/jesseduffield/lazygit/releases
-LAZYGIT_VERSION="v0.66.2"
-LAZYGIT_FILE="lazygit_${LAZYGIT_VERSION#v}_darwin_arm64.tar.gz"
-LAZYGIT_URL="https://github.com/jesseduffield/lazygit/releases/download/$LAZYGIT_VERSION/${LAZYGIT_FILE}"
-LAZYGIT_SHA="sha256:fadda59ae7665ba556fcbaa704c7eade6e40d016d3f3b25d6327dd1f3f906a0c"
-
-# Tofu
-# sha: https://github.com/opentofu/opentofu/releases
-TOFU_VERSION="1.13.1"
-TOFU_FILE="tofu_${TOFU_VERSION}_darwin_arm64.zip"
-TOFU_URL="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/${TOFU_FILE}"
-TOFU_SHA="sha256:81aebe6453223bcb3ce3c28424b36d009ebfddd3ad65ad1ec3eed0d0d574a77b"
-
-# Open Tofu LS
-# sha: https://github.com/opentofu/tofu-ls/releases
-TOFULS_VERSION="0.5.3"
-TOFULS_FILE="tofu-ls_Darwin_arm64.tar.gz"
-TOFULS_URL="https://github.com/opentofu/tofu-ls/releases/download/v${TOFULS_VERSION}/${TOFULS_FILE}"
-TOFULS_SHA="sha256:391d2771a501ddc9a1f6575f57346f2653ff7df82d322a13c87147f38b8e0833"
-
-# Global Packages (Pinned for Zero-Trust Updates) ---
-
-GOPLS_VERSION="v0.24.0"
-GOIMPORTS_VERSION="v0.52.0"
-PNPM_VERSION="12.14.0"
-BIOME_VERSION="2.5.12"
-
-# Code Generation Plugins
-BUF_VERSION="v1.74.0"
-PROTOC_GEN_GO_VERSION="v1.36.11"
-PROTOC_GEN_CONNECT_GO_VERSION="v1.18.1"
-PROTOC_GEN_ES_VERSION="2.16.0"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/versions.env"
 
 # ==============================================================================
 # Paths & Ledger Setup
@@ -170,7 +40,6 @@ LOCAL_DIR="$HOME/.local"
 BIN_DIR="$LOCAL_DIR/bin"
 NVIM_APP_DIR="$LOCAL_DIR/nvim-app"
 GCLOUD_DIR="$LOCAL_DIR/google-cloud-sdk"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RECEIPTS_FILE="$LOCAL_DIR/.ide_receipts"
 
 mkdir -p "$BIN_DIR" "$CACHE_DIR" "$NVIM_APP_DIR"
@@ -277,7 +146,7 @@ if needs_update "Gcloud" "$GCLOUD_VERSION"; then
   fetch_and_verify "Google Cloud SDK" "$GCLOUD_URL" "$GCLOUD_FILE" "gcloud.tar.gz" "$GCLOUD_SHA"
   rm -rf "$GCLOUD_DIR" && tar -xzf "$CACHE_DIR/gcloud.tar.gz" -C "$LOCAL_DIR"
 
-  echo "📦 Bootstrapping gcloud (Using isolated Python 3.12)..."
+  echo "📦 Bootstrapping gcloud (Using isolated Python)..."
   # Force gcloud to use our strictly controlled Python binary
   env CLOUDSDK_PYTHON="$BIN_DIR/python3" CLOUDSDK_CORE_DISABLE_PROMPTS=1 \
     "$GCLOUD_DIR/install.sh" --quiet --path-update=false --command-completion=false
@@ -335,7 +204,7 @@ fi
 
 if needs_update "NPM_Packages" "${PNPM_VERSION}_${BIOME_VERSION}"; then
   echo "📦 Installing Biome and pnpm securely via verified NPM binary..."
-  "$BIN_DIR/npm" install -g --ignore-scripts=false "pnpm@${PNPM_VERSION}" "@biomejs/biome@${BIOME_VERSION}"
+  "$BIN_DIR/npm" install -g --allow-scripts=pnpm "pnpm@${PNPM_VERSION}" "@biomejs/biome@${BIOME_VERSION}"
   ln -sf "$LOCAL_DIR/node/bin/pnpm" "$BIN_DIR/pnpm"
   ln -sf "$LOCAL_DIR/node/bin/pnpx" "$BIN_DIR/pnpx"
   mark_updated "NPM_Packages" "${PNPM_VERSION}_${BIOME_VERSION}"
@@ -463,9 +332,9 @@ if [ -d "$SCRIPT_DIR/scripts" ]; then
   for script in "$SCRIPT_DIR/scripts"/*.sh; do
     if [ -f "$script" ]; then
       script_name=$(basename "$script" .sh)
-      chmod +x "$script"
-      ln -sf "$script" "$BIN_DIR/$script_name"
-      echo "   ✅ Linked: $script_name"
+      cp "$script" "$BIN_DIR/$script_name"
+      chmod +x "$BIN_DIR/$script_name"
+      echo "   ✅ Installed: $script_name"
     fi
   done
 fi
@@ -523,7 +392,6 @@ EOF
 chmod +x "$BIN_DIR/docker-compose"
 
 echo "⚠️  NOTE: Docker is running entirely inside a VM via SSH wrappers."
-echo "⚠️  NOTE: Docker is running entirely inside a VM via SSH wrappers."
 echo "   - Volume mounts (-v) will only work for paths within /Users."
 echo "   - To mount paths outside /Users, run: colima start --edit"
 
@@ -569,9 +437,8 @@ touch "$ZSHRC"
 grep -q ".local/bin" "$ZSHRC" || echo 'export PATH="$HOME/.local/bin:$PATH"' >>"$ZSHRC"
 grep -q ".local/node/bin" "$ZSHRC" || echo 'export PATH="$HOME/.local/node/bin:$PATH"' >>"$ZSHRC"
 grep -q "go/bin" "$ZSHRC" || echo 'export PATH="$PATH:$HOME/go/bin"' >>"$ZSHRC"
-
-# prevent go from automatically installing new versions
-echo 'export GOTOOLCHAIN=local' >>~/.zshrc
+grep -q "GOTOOLCHAIN=local" "$ZSHRC" || echo 'export GOTOOLCHAIN=local' >>"$ZSHRC"
+grep -q "CLOUDSDK_PYTHON" "$ZSHRC" || echo 'export CLOUDSDK_PYTHON="$HOME/.local/bin/python3"' >>"$ZSHRC"
 
 # Clone the LazyVim base repo ONLY if it doesn't exist
 if [ ! -d "$HOME/.config/nvim" ]; then
