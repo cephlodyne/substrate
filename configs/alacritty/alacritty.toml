@@ -1,0 +1,16 @@
+[window]
+dimensions = { columns = 120, lines = 35 }
+padding = { x = 12, y = 12 }
+opacity = 0.95
+option_as_alt = "Both"
+dynamic_title = true
+[font]
+normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
+bold = { family = "JetBrainsMono Nerd Font", style = "Bold" }
+italic = { family = "JetBrainsMono Nerd Font", style = "Italic" }
+size = 18.0
+[keyboard]
+bindings = [{ key = "N", mods = "Command", action = "CreateNewWindow" }]
+[colors.primary]
+background = "#e1e2e7"
+foreground = "#3760bf"

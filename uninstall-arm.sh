@@ -1,16 +1,49 @@
 #!/bin/bash
 set -euo pipefail
 # ==============================================================================
-# ZERO-TRUST IDE TEARDOWN SCRIPT (macOS / Apple Silicon ARM64)
-# Completely removes all tools, caches, configs, ledgers, and VMs installed.
+# ZERO-TRUST SUBSTRATE TEARDOWN SCRIPT (macOS / Apple Silicon ARM64)
+# Usage:
+#   ./uninstall-arm.sh [OPTIONS]
+#
+# Options:
+#   --keep-vms   Preserve ~/.colima and ~/.lima virtual machines & Docker volumes
+#   --yes, -y    Skip confirmation prompt
 # ==============================================================================
 
-echo "🧹 Initiating Zero-Trust IDE teardown..."
-echo "⚠️  WARNING: This will permanently delete your Colima containers, volumes, fonts, and Neovim configurations."
-read -p "Are you sure you want to proceed? (y/N): " confirm
-if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-  echo "🛑 Aborting uninstall."
-  exit 0
+KEEP_VMS=0
+SKIP_CONFIRM=0
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+  --keep-vms)
+    KEEP_VMS=1
+    shift
+    ;;
+  --yes | -y)
+    SKIP_CONFIRM=1
+    shift
+    ;;
+  *)
+    echo "❌ Unknown flag: $1"
+    echo "👉 Usage: ./uninstall-arm.sh [--keep-vms] [--yes|-y]"
+    exit 1
+    ;;
+  esac
+done
+
+echo "🧹 Initiating Zero-Trust Substrate teardown..."
+if [ "$KEEP_VMS" -eq 1 ]; then
+  echo "ℹ️  --keep-vms enabled: Colima/Lima virtual machines and Docker volumes will be preserved."
+else
+  echo "⚠️  WARNING: This will permanently delete your Colima containers, volumes, fonts, and Neovim configurations."
+fi
+
+if [ "$SKIP_CONFIRM" -eq 0 ]; then
+  read -r -p "Are you sure you want to proceed? (y/N): " confirm
+  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    echo "🛑 Aborting uninstall."
+    exit 0
+  fi
 fi
 
 LOCAL_DIR="$HOME/.local"
@@ -32,28 +65,26 @@ fi
 # ------------------------------------------------------------------------------
 # 2. STOP RUNNING SERVICES (Colima / Lima)
 # ------------------------------------------------------------------------------
-echo "🛑 Stopping Colima and Lima virtual machines..."
-if command -v colima &>/dev/null; then
-  colima stop --force 2>/dev/null || true
-fi
-if command -v limactl &>/dev/null; then
-  limactl stop --force colima 2>/dev/null || true
+if [ "$KEEP_VMS" -eq 0 ]; then
+  echo "🛑 Stopping Colima and Lima virtual machines..."
+  if command -v colima &>/dev/null; then
+    colima stop --force 2>/dev/null || true
+  fi
+  if command -v limactl &>/dev/null; then
+    limactl stop --force colima 2>/dev/null || true
+  fi
 fi
 
 # ------------------------------------------------------------------------------
 # 3. UNLOCK READ-ONLY DIRECTORIES & CLEAR CACHES
 # ------------------------------------------------------------------------------
 echo "🔓 Clearing Go module cache and unlocking read-only files..."
-
-# 1. Let Go natively handle its own stubborn read-only module cache BEFORE we delete Go
 if [ -x "$LOCAL_DIR/go/bin/go" ]; then
   env GOPATH="$HOME/go" "$LOCAL_DIR/go/bin/go" clean -modcache 2>/dev/null || true
 elif command -v go &>/dev/null; then
   go clean -modcache 2>/dev/null || true
 fi
 
-# 2. Add 'X' to chmod (capital X grants execute/traversal rights to directories)
-#    This acts as a failsafe for Go, and handles read-only Git objects in Neovim dirs.
 chmod -R u+rwX "$HOME/go" "$LOCAL_DIR/go" "$HOME/.config/nvim" "$HOME/.local/share/nvim" 2>/dev/null || true
 
 # ------------------------------------------------------------------------------
@@ -62,57 +93,63 @@ chmod -R u+rwX "$HOME/go" "$LOCAL_DIR/go" "$HOME/.config/nvim" "$HOME/.local/sha
 echo "🗑️  Removing extracted application directories and ledgers..."
 rm -rf "$LOCAL_DIR/nvim-app"
 rm -rf "$LOCAL_DIR/google-cloud-sdk"
+rm -rf "$LOCAL_DIR/python"
 rm -rf "$LOCAL_DIR/go"
-rm -rf "$HOME/go"        # Removes Go module cache and any user-installed Go binaries
-rm -rf "$LOCAL_DIR/node" # This automatically removes global Biome & npm packages
+rm -rf "$HOME/go"
+rm -rf "$LOCAL_DIR/node"
 rm -rf "$LOCAL_DIR/include/google"
+rm -rf "$LOCAL_DIR/share/lima"
 rm -rf "$CACHE_DIR"
-rm -f "$LOCAL_DIR/.ide_receipts" # Removes the smart-update ledger
+rm -f "$LOCAL_DIR/.ide_receipts"
+rm -f "$LOCAL_DIR/versions.env"
 
 # ------------------------------------------------------------------------------
 # 5. REMOVE CONFIGURATIONS, STATE & VIRTUAL MACHINES
 # ------------------------------------------------------------------------------
-echo "🗑️  Removing configuration files, editor state, and VM data..."
+echo "🗑️  Removing configuration files and editor state..."
 rm -rf "$HOME/.config/nvim"
 rm -rf "$HOME/.config/alacritty"
 rm -rf "$HOME/.local/share/nvim"
 rm -rf "$HOME/.local/state/nvim"
 rm -rf "$HOME/.cache/nvim"
-rm -rf "$HOME/.colima"
-rm -rf "$HOME/.lima"
+
+if [ "$KEEP_VMS" -eq 0 ]; then
+  echo "🗑️  Removing Colima and Lima VM disks..."
+  rm -rf "$HOME/.colima"
+  rm -rf "$HOME/.lima"
+fi
 
 # ------------------------------------------------------------------------------
 # 6. REMOVE ALACRITTY APP
 # ------------------------------------------------------------------------------
 if [[ -d "/Applications/Alacritty.app" ]]; then
   echo "🗑️  Removing Alacritty.app from System Applications (may prompt for password)..."
-  sudo rm -rf "/Applications/Alacritty.app" 2>/dev/null || true
+  rm -rf /Applications/Alacritty.app 2>/dev/null || sudo rm -rf /Applications/Alacritty.app
 elif [[ -d "$HOME/Applications/Alacritty.app" ]]; then
   echo "🗑️  Removing Alacritty.app from User Applications..."
   rm -rf "$HOME/Applications/Alacritty.app"
 fi
 
 # ------------------------------------------------------------------------------
-# 8. REMOVE FONTS
+# 7. REMOVE FONTS
 # ------------------------------------------------------------------------------
 echo "🔤 Removing JetBrains Mono Nerd Font..."
 rm -f "$HOME/Library/Fonts/JetBrainsMono"*.ttf
 rm -f "$HOME/Library/Fonts/JetBrainsMono"*.otf 2>/dev/null || true
 
 # ------------------------------------------------------------------------------
-# 9. SURGICALLY REMOVE BINARIES & SYMLINKS
+# 8. SURGICALLY REMOVE BINARIES & SYMLINKS
 # ------------------------------------------------------------------------------
 echo "🗑️  Cleaning up ~/.local/bin..."
-# We explicitly target only the binaries, wrappers, and symlinks our script created.
 BINARIES_TO_REMOVE=(
-  "colima" "lima" "limactl" "docker" "docker-compose" "gcloud"
-  "go" "node" "npm" "npx" "pnpm" "pnpx" "nvim" "rg" "fd"
+  "colima" "lima" "limactl" "docker" "docker-compose" "gcloud" "python3"
+  "go" "node" "npm" "npx" "pnpm" "pnpx" "biome" "nvim" "rg" "fd"
   "lazygit" "tree-sitter" "tofu" "tofu-ls" "terraform" "terraform-ls"
   "gopls" "goimports" "trufflehog" "govulnfix" "protoc"
   "buf" "protoc-gen-go" "protoc-gen-connect-go" "protoc-gen-es" "ceph"
+  "CHANGELOG.md" "LICENSE" "README.md"
 )
 
-# Dynamically find and remove any symlinks we created from the scripts directory
 if [ -d "$SCRIPT_DIR/scripts" ]; then
   for script in "$SCRIPT_DIR/scripts"/*.sh; do
     if [ -f "$script" ]; then
@@ -126,18 +163,20 @@ for bin in "${BINARIES_TO_REMOVE[@]}"; do
 done
 
 # ------------------------------------------------------------------------------
-# 10. CLEAN UP ZSHRC
+# 9. CLEAN UP ZSHRC
 # ------------------------------------------------------------------------------
 echo "📝 Cleaning up ~/.zshrc profile..."
 ZSHRC="$HOME/.zshrc"
 if [ -f "$ZSHRC" ]; then
-  # Use macOS compatible 'sed' (-i '') to delete the specific lines we injected
-  sed -i '' '/export PATH="$HOME\/.local\/bin:$PATH"/d' "$ZSHRC"
-  sed -i '' '/export PATH="$HOME\/.local\/node\/bin:$PATH"/d' "$ZSHRC"
-  sed -i '' '/export PATH="$PATH:$HOME\/go\/bin"/d' "$ZSHRC"
+  sed -i '' '/export PATH="$HOME\/.local\/bin:\$PATH"/d' "$ZSHRC"
+  sed -i '' '/export PATH="$HOME\/.local\/node\/bin:\$PATH"/d' "$ZSHRC"
+  sed -i '' '/export PNPM_HOME="$HOME\/.local\/node\/bin"/d' "$ZSHRC"
+  sed -i '' '/export PATH="\$PATH:\$HOME\/go\/bin"/d' "$ZSHRC"
+  sed -i '' '/export GOTOOLCHAIN=local/d' "$ZSHRC"
+  sed -i '' '/export CLOUDSDK_PYTHON=/d' "$ZSHRC"
+  sed -i '' '/export PYTHONDONTWRITEBYTECODE=1/d' "$ZSHRC"
 fi
 
 echo "=============================================================================="
-echo "✅ Teardown complete! The Zero-Trust IDE has been completely removed."
-echo "👉 Note: Run 'source ~/.zshrc' or restart your terminal to clear the old environment variables."
+echo "✅ Teardown complete! The Zero-Trust Substrate environment has been removed."
 echo "=============================================================================="
