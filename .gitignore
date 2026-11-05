@@ -1,5 +1,16 @@
-/.DS_Store
-/files-consolidated.xml
-/src/catalyst/files-consolidated.xml
-/.local
-/dist
+# Portable tarball builds & staging directories
+dist/
+*.tar.gz
+*.tar.xz
+*.sha256
+*.dmg
+*.zip
+
+# Consolidated LLM context exports
+*.xml
+substrate-part*.xml
+
+# macOS & Editor artifacts
+.DS_Store
+*.swp
+*~

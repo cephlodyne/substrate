@@ -15,15 +15,15 @@ MAX_CHUNK_SIZE=130000         # 130KB per XML output chunk (safely under 140k-ch
 EXCLUDE_DIRS=(
   "node_modules" "dist" "build" "public" "vendor" "bin"
   "__pycache__" "venv" ".venv" ".next" "out"
-  ".git" ".idea" ".vscode" ".terraform" ".local"
+  ".git" ".idea" ".vscode" ".terraform" ".terragrunt-cache" ".local"
 )
 
 EXCLUDE_FILES=(
-  "go.sum" "package-lock.json" "yarn.lock" "pnpm-lock.yaml" "poetry.lock"
+  "go.sum" "package-lock.json" "yarn.lock" "pnpm-lock.yaml" "poetry.lock" "lazy-lock.json"
   "*.tfstate" "*.tfstate.*" "*.min.js" "*.min.css" "*.map" ".DS_Store"
   ".terraform.lock.hcl" ".terraform.lock.hcl*"
   "*.pem" "*.key" "*.crt" "*.cer" "*.p12" "*.pfx" "id_rsa*" ".env*" "secrets.*"
-  "*.sqlite" "*.sqlite3" "*.db" "*.log"
+  "*.sqlite" "*.sqlite3" "*.db" "*.log" "*.tar.xz" "*.tar.gz" "*.sha256"
   "combined_config.auto.tfvars.json" "*.tfvars.json"
   "files-consolidated*.xml" "files-consolidated*.txt" "combined_terraform_files.txt"
 )
@@ -67,6 +67,7 @@ Options:
 
 Examples:
   $(basename "$0")
+  $(basename "$0") -o strata.xml
   $(basename "$0") -x editor.html
   $(basename "$0") 10-bootstrap 60-env-platform modules
 EOF
@@ -366,6 +367,13 @@ main() {
       ;;
     esac
   done
+
+  # Guardrail: Prevent running directly against $HOME or ~/.local
+  local current_dir
+  current_dir="$(pwd)"
+  if [[ "$current_dir" == "$HOME" || "$current_dir" == "$HOME/.local"* ]]; then
+    die "Refusing to run consolidate directly inside $current_dir. Please cd into a project directory first."
+  fi
 
   local base_name="${OUTPUT_FILE%.*}"
   local ext="${OUTPUT_FILE##*.}"
